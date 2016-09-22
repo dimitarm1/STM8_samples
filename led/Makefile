@@ -1,8 +1,11 @@
 NAME=testproj
 SDCC=sdcc
 HEX2BIN=hex2bin
-
-CCFLAGS=-DSTM8S003 -I../ -I/usr/share/sdcc/include -mstm8 --out-fmt-ihx
+ifeq ($(OS),Windows_NT)
+  CCFLAGS=-DSTM8S003 -I$(CURDIR)/.. -IC:/ProgramFiles/SDCC/include -mstm8 --out-fmt-ihx
+else
+  CCFLAGS=-DSTM8S003 -I../ -I/usr/share/sdcc/include -mstm8 --out-fmt-ihx
+endif
 LDFLAGS= -lstm8 -mstm8 --out-fmt-ihx
 FLASHFLAGS=-cstlinkv2 -pstm8s003
 
@@ -11,13 +14,13 @@ SRC=$(wildcard *.c)
 OBJ=$(SRC:%.c=%.rel)
 TRASH=$(OBJ) $(SRC:%.c=%.rst) $(SRC:%.c=%.asm) $(SRC:%.c=%.lst)
 TRASH+=$(SRC:%.c=%.sym) $(NAME).ihx $(NAME).lk $(NAME).map
-INDEPENDENT_HEADERS=../stm8l.h Makefile
+INDEPENDENT_HEADERS=$(CURDIR)../stm8l.h Makefile
 
 all: $(NAME).bin
 
 $(SRC) : %.c : %.h $(INDEPENDENT_HEADERS)
-	@touch $@
-	@echo $@
+#	@touch $@
+#	@echo $@
 
 %.h: ;
 
@@ -30,10 +33,10 @@ load: $(NAME).bin
 %.rel: %.c
 	$(SDCC) $(CCFLAGS) -c $<
 
-$(NAME).ihx: $(OBJ)
-	$(SDCC) $(LDFLAGS) $(OBJ) -o $(NAME).ihx
+$(NAME).hex: $(OBJ)
+	$(SDCC) $(LDFLAGS) $(OBJ) -o $(NAME).hex	
 
-$(NAME).bin: $(NAME).ihx
-	$(HEX2BIN) -p 00 $<
+$(NAME).bin: $(NAME).hex
+	$(HEX2BIN) $<
 
 .PHONY: all
