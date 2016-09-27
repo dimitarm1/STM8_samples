@@ -79,15 +79,7 @@ static U8 PD_bits[18] = {0x08,0x0e,0x08,0x0a,0x0e,0x0a,0x08,0x0e,0x08,0x0a,0x0c,
  */
 
 /************* arrays for ports *************/
-// PA, mask: 0x02, PA1
-static U8 PA_bits[18] = {0,2,2,2,0,0,0,2,0,0,0,0,0,2,0,0,2,0};
-#define PA_BLANK 0x02
-// PB, mask: 0x30, PB4:0x10=16, PB5:0x20=32
-#define PB_BLANK 0x30
-static U8 PB_bits[18] = {0,32,0,0,32,16,16,0,0,0,0,48,16,32,16,16,48,48};
-// PC, mask: 0xF8, PC3:0x08=8, PC4:0x10=16, PC5:0x20=32, PC6:0x40=64, PC7:0x80=128
-#define PC_BLANK 0xF8
-static U8 PC_bits[18] = {40,232,48,160,224,160,32,232,32,160,96,32,56,32,48,112,240,96};
+static U8 LED_bits[18] = {0,1,2,4,8,0x10,0x20,0x40,0x80,0,0,0,0,0,0,0,0,0};
 
 /**
  * Setup for writing a letter
@@ -95,19 +87,26 @@ static U8 PC_bits[18] = {40,232,48,160,224,160,32,232,32,160,96,32,56,32,48,112,
  */
 void write_letter(U8 ltr){
 	U8 L = ltr & 0x7f;
+	U8 i;
 	PD_ODR |= (1<<3) | (1<<2) | (1<<1); // turn off digits 1..5
 	PC_ODR |= (1<<7) | (1<<4) | (1<<3); // turn off digits 1..5
 	if(L < 18){ // letter
-		PA_ODR = PA_bits[L];
-		PB_ODR = PB_bits[L];
-		PC_ODR = PC_bits[L];
+		L = LED_bits[L];
 	}else{ // space
-		PA_ODR = PA_BLANK;
-		PB_ODR = PB_BLANK;
-		PC_ODR = PC_BLANK;
+		L = 0;
 	}
-	if(ltr & 0x80){ // DP
-		PC_ODR ^= 0x20;
+	for (i = 0; i<7; i++)
+	{
+		PC_ODR &= ~(1<<6); // Clear CLK
+		if((L>>i) & 1)
+		{
+			PC_ODR |= (1<<5); // Clear CLK
+		}
+		else
+		{
+			PC_ODR &= ~(1<<5); // Clear CLK
+		}
+		PC_ODR |= (1<<6); // Set CLK - rising edge transfers data
 	}
 }
 
@@ -130,10 +129,10 @@ void light_up_digit(U8 N){
 		case 3:
 			PD_ODR |= 0x02;
 		break;
-		case 2:
+		case 4:
 			PD_ODR |= 0x10;
 		break;
-		case 3:
+		case 5:
 			PD_ODR |= 0x02;
 		break;
 	}
@@ -152,14 +151,14 @@ static U8 N_current = 0; // current digit to display
  */
 void set_display_buf(char *str){
 	U8 B[4];
-	char ch, M = 0, i;
+	signed char ch, M = 0, i;
 	N_current = 0; // refresh current digit number
 	// empty buffer
-	for(i = 0; i < 4; i++)
+	for(i = 0; i < 6; i++)
 		display_buffer[i] = ' ';
 	if(!str) return;
 	i = 0;
-	for(;(ch = *str) && (i < 4); str++){
+	for(;(ch = *str) && (i < 6); str++){
 		M = 0;
 		if(ch > '/' && ch < ':'){ // digit
 			M = '0';
@@ -187,7 +186,7 @@ void set_display_buf(char *str){
 		i++;
 	}
 	// now make align to right
-	ch = 3;
+	ch = 5;
 	for(M = i-1; M > -1; M--, ch--){
 		display_buffer[ch] = B[M];
 	}
@@ -208,7 +207,7 @@ void show_buf_digit(U8 N){
  */
 void show_next_digit(){
 	show_buf_digit(N_current++);
-	if(N_current > 3) N_current = 0;
+	if(N_current > 5) N_current = 0;
 }
 
 /**
@@ -217,7 +216,7 @@ void show_next_digit(){
  */
 void display_int(int I){
 	int rem;
-	char N = 3, sign = 0;
+	signed char N = 5, sign = 0;
 	if(I < -999 || I > 9999){
 		set_display_buf("---E");
 		return;
@@ -245,6 +244,6 @@ void display_int(int I){
  * @param i - position to display DP, concequent calls can light up many DPs
  */
 void display_DP_at_pos(U8 i){
-	if(i > 3) return;
+	if(i > 5) return;
 	display_buffer[i] |= 0x80;
 }
