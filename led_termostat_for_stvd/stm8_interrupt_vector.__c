@@ -1,0 +1,111 @@
+/*	BASIC INTERRUPT VECTOR TABLE FOR STM8 devices
+ *	Copyright (c) 2007 STMicroelectronics
+ */
+#include "stm8l.h"
+
+typedef void @far (*interrupt_handler_t)(void);
+
+struct interrupt_vector {
+	unsigned char interrupt_instruction;
+	interrupt_handler_t interrupt_handler;
+};
+
+extern unsigned long Global_time; // global time in ms
+
+
+@far @interrupt void NonHandledInterrupt (void)
+{
+	/* in order to detect unexpected events during development, 
+	   it is recommended to set a breakpoint on the following instruction
+	*/
+	return;
+}
+
+@far @interrupt void TIM1_UPD_OVF_TRG_BRK_IRQHandler (void)
+{
+	if(TIM1_SR1 & TIM_SR1_UIF){ // update interrupt
+		Global_time++; // increase timer
+	}
+	TIM1_SR1 = 0; // clear all interrupt flags
+	return;
+}
+
+	
+
+extern void _stext();     /* startup routine */
+
+struct interrupt_vector const _vectab[] = {
+	// Top Level Interrupt
+  // INTERRUPT_HANDLER(TLI_IRQHandler, 0){}
+	{0x82, (interrupt_handler_t)_stext}, /* reset */
+	// Auto Wake Up Interrupt
+  // INTERRUPT_HANDLER(AWU_IRQHandler, 1){}
+	{0x82, NonHandledInterrupt}, /* trap  */
+	// Clock Controller Interrupt
+  // INTERRUPT_HANDLER(CLK_IRQHandler, 2){}
+	{0x82, NonHandledInterrupt}, /* irq0  */
+	// External Interrupt PORTA
+  // INTERRUPT_HANDLER(EXTI_PORTA_IRQHandler, 3){}
+	{0x82, NonHandledInterrupt}, /* irq1  */
+	// External Interrupt PORTB
+  // INTERRUPT_HANDLER(EXTI_PORTB_IRQHandler, 4){}
+	{0x82, NonHandledInterrupt}, /* irq2  */
+	// External Interrupt PORTC
+  // INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5){}
+	{0x82, NonHandledInterrupt}, /* irq3  */
+	// External Interrupt PORTD
+  // INTERRUPT_HANDLER(EXTI_PORTD_IRQHandler, 6){}
+	{0x82, NonHandledInterrupt}, /* irq4  */
+	// External Interrupt PORTE
+  // INTERRUPT_HANDLER(EXTI_PORTE_IRQHandler, 7){}
+	{0x82, NonHandledInterrupt}, /* irq5  */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq6  */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq7  */
+	// SPI Interrupt routine.
+  // INTERRUPT_HANDLER(SPI_IRQHandler, 10){}
+	{0x82, NonHandledInterrupt}, /* irq8  */
+	// Timer1 Update/Overflow/Trigger/Break Interrupt
+  // INTERRUPT_HANDLER(TIM1_UPD_OVF_TRG_BRK_IRQHandler, 11){
+	{0x82, NonHandledInterrupt}, /* irq9  */
+	// Timer1 Capture/Compare Interrupt routine.
+  // INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12){}
+	{0x82, NonHandledInterrupt}, /* irq10 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq11 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq12 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq13 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq14 */
+	// UART1 TX Interrupt
+  // INTERRUPT_HANDLER(UART1_TX_IRQHandler, 17){}
+	{0x82, NonHandledInterrupt}, /* irq15 */
+	// UART1 RX Interrupt
+  // INTERRUPT_HANDLER(UART1_RX_IRQHandler, 18){}
+	{0x82, NonHandledInterrupt}, /* irq16 */
+	// I2C Interrupt
+  // INTERRUPT_HANDLER(I2C_IRQHandler, 19){}
+	{0x82, NonHandledInterrupt}, /* irq17 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq18 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq19 */
+	// ADC1 interrupt
+  // INTERRUPT_HANDLER(ADC1_IRQHandler, 22){}
+	{0x82, NonHandledInterrupt}, /* irq20 */
+	// reserved
+	{0x82, NonHandledInterrupt}, /* irq21 */
+	// Eeprom EEC Interrupt
+  // INTERRUPT_HANDLER(EEPROM_EEC_IRQHandler, 24){}
+	{0x82, NonHandledInterrupt}, /* irq22 */
+	{0x82, NonHandledInterrupt}, /* irq23 */
+	{0x82, NonHandledInterrupt}, /* irq24 */
+	{0x82, NonHandledInterrupt}, /* irq25 */
+	{0x82, NonHandledInterrupt}, /* irq26 */
+	{0x82, NonHandledInterrupt}, /* irq27 */
+	{0x82, NonHandledInterrupt}, /* irq28 */
+	{0x82, NonHandledInterrupt}, /* irq29 */
+};
