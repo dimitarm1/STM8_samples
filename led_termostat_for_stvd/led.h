@@ -38,13 +38,18 @@ void display_DP_at_pos(U8 i);
 		PA_CR1 = 0x08; PB_CR1 = 0x30; PC_CR1 = 0xf8; PD_CR1 = 0x1e; \
 	}while(0)
 */
+/*
+PA_DDR = 0x04;\
+		PB_DDR = 0x20;\
+		PC_DDR = 0xf8;\
+		PD_DDR = 0x07;\*/
 
 // PA1|3, PB4|5, PC3|4|5|6|7, PD1|4|6
 #define LED_init()	do{ \
-		PA_DDR = 0x04;\
-		PB_DDR = 0x20;\
-		PC_DDR = 0xf8;\
-		PD_DDR = 0x07;\
+		PA_DDR = 0xff;\
+		PB_DDR = 0xff;\
+		PC_DDR = 0xbf;\
+		PD_DDR = 0xff;\
 		PA_CR1 = 0xff;\
 		PB_CR1 = 0xff;\
 		PC_CR1 = 0xff;\

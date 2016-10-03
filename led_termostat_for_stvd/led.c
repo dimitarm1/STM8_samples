@@ -88,8 +88,9 @@ static U8 LED_bits[18] = {0,1,2,4,8,0x10,0x20,0x40,0x80,0,0,0,0,0,0,0,0,0};
 void write_letter(U8 ltr){
 	U8 L = ltr & 0x7f;
 	U8 i;
-	PD_ODR |= (1<<3) | (1<<2) | (1<<1); // turn off digits 1..5
-	PC_ODR |= (1<<7) | (1<<4) | (1<<3); // turn off digits 1..5
+	
+	PD_ODR &= ~((1<<3) | (1<<2)); // turn off digits 1..5
+	PC_ODR &= ~((1<<7) | (1<<4) | (1<<3) | (1<<1)); // turn off digits 1..5
 	if(L < 18){ // letter
 		L = LED_bits[L];
 	}else{ // space
@@ -100,11 +101,11 @@ void write_letter(U8 ltr){
 		PC_ODR &= ~(1<<6); // Clear CLK
 		if((L>>i) & 1)
 		{
-			PC_ODR |= (1<<5); // Clear CLK
+			PC_ODR |= (1<<6); // Set data
 		}
 		else
 		{
-			PC_ODR &= ~(1<<5); // Clear CLK
+			PC_ODR &= ~(1<<5); // Clear data
 		}
 		PC_ODR |= (1<<6); // Set CLK - rising edge transfers data
 	}
@@ -118,22 +119,22 @@ void write_letter(U8 ltr){
 void light_up_digit(U8 N){
 	switch(N){
 		case 0:
-			PA_ODR |= 0x08;
+			PD_ODR |= (1<<1);
 		break;
 		case 1:
-			PD_ODR |= 0x40;
+			PC_ODR |= (1<<3);
 		break;
 		case 2:
-			PD_ODR |= 0x10;
+			PD_ODR |= (1<<3);
 		break;
 		case 3:
-			PD_ODR |= 0x02;
+			PC_ODR |= (1<<4);
 		break;
 		case 4:
-			PD_ODR |= 0x10;
+			PD_ODR |= (1<<2);
 		break;
 		case 5:
-			PD_ODR |= 0x02;
+			PC_ODR |= (1<<7);
 		break;
 	}
 }
