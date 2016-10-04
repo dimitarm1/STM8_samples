@@ -89,8 +89,9 @@ void write_letter(U8 ltr){
 	U8 L = ltr & 0x7f;
 	U8 i;
 	
-	PD_ODR &= ~((1<<3) | (1<<2)); // turn off digits 1..5
-	PC_ODR &= ~((1<<7) | (1<<4) | (1<<3) | (1<<1)); // turn off digits 1..5
+	//PD_ODR &= ~((1<<3) | (1<<2)); // turn off digits 1..5
+	//PC_ODR &= ~((1<<7) | (1<<4) | (1<<3) | (1<<1)); // turn off digits 1..5
+	L = 4;
 	if(L < 18){ // letter
 		L = LED_bits[L];
 	}else{ // space
@@ -101,13 +102,17 @@ void write_letter(U8 ltr){
 		PC_ODR &= ~(1<<6); // Clear CLK
 		if((L>>i) & 1)
 		{
-			PC_ODR |= (1<<6); // Set data
+			PC_ODR &= ~(1<<5); // Set LED on
 		}
 		else
 		{
-			PC_ODR &= ~(1<<5); // Clear data
+			PC_ODR |= (1<<5); // Set LED OFF			
 		}
 		PC_ODR |= (1<<6); // Set CLK - rising edge transfers data
+		_asm("nop");
+		_asm("nop");
+		_asm("nop");
+		if (i == 6) i = 0;
 	}
 }
 
@@ -140,7 +145,7 @@ void light_up_digit(U8 N){
 }
 
 static U8 display_buffer[6] = {' ',' ',' ',' ',' ',' '}; // blank by default
-static U8 N_current = 0; // current digit to display
+U8 N_current = 0; // current digit to display
 
 /**
  * fills buffer to display
@@ -153,7 +158,7 @@ static U8 N_current = 0; // current digit to display
 void set_display_buf(char *str){
 	U8 B[4];
 	signed char ch, M = 0, i;
-	N_current = 0; // refresh current digit number
+	//N_current = 0; // refresh current digit number
 	// empty buffer
 	for(i = 0; i < 6; i++)
 		display_buffer[i] = ' ';

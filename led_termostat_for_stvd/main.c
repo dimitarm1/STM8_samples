@@ -30,7 +30,7 @@
 #define DIGIT_PER 10
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
-U8 LED_delay = 1; // one digit emitting time
+U8 LED_delay = 100; // one digit emitting time
 
 
 @interrupt void HandledInterrupt (void)
@@ -111,18 +111,17 @@ int main() {
 	
 	// Loop
 	do {
-		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)){ // set next timer value
+	//	if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
+		{
 			T_time = Global_time;
 			display_int(i++);
 			if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
-			if(ADC_value > 819) display_DP_at_pos(0); // big value == 4 points
-			if(ADC_value > 614) display_DP_at_pos(1); // less == 3 points
-			if(ADC_value > 410) display_DP_at_pos(2); // little == 2 points
-			if(ADC_value > 205) display_DP_at_pos(3); // more little == 1 point
+		
 			// values less than 206 == 0
 		}
-		if((U8)(Global_time - T_LED) > LED_delay){
+		if((U8)(Global_time - T_LED) > LED_delay)
+		{
 			T_LED = Global_time;
 			show_next_digit();
 			
