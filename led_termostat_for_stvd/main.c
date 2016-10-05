@@ -30,7 +30,7 @@
 #define DIGIT_PER 10
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
-U8 LED_delay = 100; // one digit emitting time
+U8 LED_delay = 1; // one digit emitting time
 
 
 @interrupt void HandledInterrupt (void)
@@ -111,7 +111,7 @@ int main() {
 	
 	// Loop
 	do {
-	//	if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
+		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
 			display_int(i++);

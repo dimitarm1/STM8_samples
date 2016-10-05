@@ -79,7 +79,8 @@ static U8 PD_bits[18] = {0x08,0x0e,0x08,0x0a,0x0e,0x0a,0x08,0x0e,0x08,0x0a,0x0c,
  */
 
 /************* arrays for ports *************/
-static U8 LED_bits[18] = {0,1,2,4,8,0x10,0x20,0x40,0x80,0,0,0,0,0,0,0,0,0};
+static U8 LED_bits[18] = {0xfe,0x30,0xed,0xf9,0x33,0xdb,0xdf,0xf0,0xff,0xfb,
+													0xf7,0x3f,0x0d,0x3d,0xcf,0xe7,0x01,0};
 
 /**
  * Setup for writing a letter
@@ -88,10 +89,8 @@ static U8 LED_bits[18] = {0,1,2,4,8,0x10,0x20,0x40,0x80,0,0,0,0,0,0,0,0,0};
 void write_letter(U8 ltr){
 	U8 L = ltr & 0x7f;
 	U8 i;
-	
-	//PD_ODR &= ~((1<<3) | (1<<2)); // turn off digits 1..5
-	//PC_ODR &= ~((1<<7) | (1<<4) | (1<<3) | (1<<1)); // turn off digits 1..5
-	L = 4;
+	PD_ODR &= ~((1<<3) | (1<<2)); // turn off digits 1..5
+	PC_ODR &= ~((1<<7) | (1<<6)| (1<<4) | (1<<3) ); // turn off digits 1..5	
 	if(L < 18){ // letter
 		L = LED_bits[L];
 	}else{ // space
@@ -99,7 +98,9 @@ void write_letter(U8 ltr){
 	}
 	for (i = 0; i<7; i++)
 	{
-		PC_ODR &= ~(1<<6); // Clear CLK
+		PD_ODR &= ~(1<<1); // Clear CLK
+		_asm("nop");
+		_asm("nop");		
 		if((L>>i) & 1)
 		{
 			PC_ODR &= ~(1<<5); // Set LED on
@@ -108,11 +109,9 @@ void write_letter(U8 ltr){
 		{
 			PC_ODR |= (1<<5); // Set LED OFF			
 		}
-		PC_ODR |= (1<<6); // Set CLK - rising edge transfers data
+		PD_ODR |= (1<<1); // Set CLK - rising edge transfers data		
 		_asm("nop");
-		_asm("nop");
-		_asm("nop");
-		if (i == 6) i = 0;
+		_asm("nop");		
 	}
 }
 
@@ -124,7 +123,8 @@ void write_letter(U8 ltr){
 void light_up_digit(U8 N){
 	switch(N){
 		case 0:
-			PD_ODR |= (1<<1);
+			//PD_ODR |= (1<<1);
+			PC_ODR |= (1<<7);
 		break;
 		case 1:
 			PC_ODR |= (1<<3);
@@ -139,7 +139,7 @@ void light_up_digit(U8 N){
 			PD_ODR |= (1<<2);
 		break;
 		case 5:
-			PC_ODR |= (1<<7);
+			PC_ODR |= (1<<6);
 		break;
 	}
 }
@@ -223,7 +223,7 @@ void show_next_digit(){
 void display_int(int I){
 	int rem;
 	signed char N = 5, sign = 0;
-	if(I < -999 || I > 9999){
+	if(I < -999999 || I > 999999){
 		set_display_buf("---E");
 		return;
 	}
