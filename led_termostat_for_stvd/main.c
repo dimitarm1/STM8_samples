@@ -27,7 +27,7 @@
  */
 //#define enableInterrupts() _asm("rim")
 
-#define DIGIT_PER 10
+#define DIGIT_PER 1000
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
@@ -83,7 +83,7 @@ void outch(char c)
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
-	int i = -1200;
+	int i = 00;
 	// Configure clocking
 	CLK_CKDIVR = 0; // F_HSI = 16MHz, f_CPU = 16MHz
 	// Configure pins
@@ -114,7 +114,13 @@ int main() {
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
-			display_int(i++);
+			i++;
+			if((i % 100) > 59)
+			{
+				i += 40;
+			}
+			display_int(i);
+			
 			if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
 		

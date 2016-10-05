@@ -222,12 +222,15 @@ void show_next_digit(){
  */
 void display_int(int I){
 	int rem;
+	signed char i;
 	signed char N = 5, sign = 0;
 	if(I < -999999 || I > 999999){
 		set_display_buf("---E");
 		return;
 	}
-	set_display_buf(NULL); // empty buffer
+//	set_display_buf(NULL); // empty buffer
+	for(i = 0; i < 6; i++)
+		display_buffer[i] = 0;
 	if(I == 0){ // just show zero
 		display_buffer[3] = 0;
 		return;
