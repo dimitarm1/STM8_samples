@@ -46,7 +46,7 @@ PA_DDR = 0x04;\
 
 // PA1|3, PB4|5, PC3|4|5|6|7, PD1|4|6
 #define LED_init()	do{ \
-		PA_DDR = 0xff;\
+		PA_DDR = 0xf5;\
 		PB_DDR = 0x20;\
 		PC_DDR = 0xf8;\
 		PD_DDR = 0x0f;\

@@ -28,9 +28,22 @@
 //#define enableInterrupts() _asm("rim")
 
 #define DIGIT_PER 1000
+
+#define KEY_0_PRESSED  0x01
+#define KEY_1_PRESSED  0x02
+#define KEY_2_PRESSED  0x04
+#define KEY_3_PRESSED  0x08
+
+#define KEY_0_RELEASED 0x10
+#define KEY_1_RELEASED 0x20
+#define KEY_2_RELEASED 0x40
+#define KEY_3_RELEASED 0x80
+
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
+U16 keys_scan_buffer[4];
+U8 key_state;
 
 
 @interrupt void HandledInterrupt (void)
@@ -80,10 +93,50 @@ void outch(char c)
 //		ptecr = buffer;
 	}
 
+/*	Scan pushbuttons routine.
+ *	This routine is called in the main loop.
+ *	It scans for key states, sets the new state 
+ *  and returns a mask of buttons with changed state.
+ *  Newly pressed in the bits 0-3, newly released in bits 4-7
+ */
+U8 scan_keys(void)
+{
+	U8 i, result = 0;
+	keys_scan_buffer[0] = (keys_scan_buffer[0]<<1) | (!(PB_IDR & (1<<4))); // Up (start)
+	keys_scan_buffer[1] = (keys_scan_buffer[1]<<1) | (!(PD_IDR & (1<<6))); // Dn (start)
+	keys_scan_buffer[2] = (keys_scan_buffer[2]<<1) | (!(PA_IDR & (1<<1))); // Up (stop)
+	keys_scan_buffer[3] = (keys_scan_buffer[3]<<1) | (!(PA_IDR & (1<<3))); // Dn (stop)
+	for(i = 0; i<4; i++)
+	{
+		if(keys_scan_buffer[i] == 0xffff)
+		{
+			if(!(key_state & (1<<i)))
+			{
+				key_state = key_state | (1<<i);
+				result = result | (0x01<<i);
+			}
+		}
+		if(keys_scan_buffer[i] == 0)
+		{
+			if((key_state & (1<<i)))
+			{
+				key_state = key_state & (~((U8)(0x11<<i)));
+				result = result | (0x10<<i);
+			}
+		}
+		
+	}
+	return result;
+}
+
+
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
 	int i = 00;
+	U8 counter_enabled = 0;
+	key_state = 0;
+	keys_scan_buffer[0] = keys_scan_buffer[1] = keys_scan_buffer[2] = keys_scan_buffer[3] = 0;
 	Global_time = 0L; // global time in ms
 	ADC_value = 0; // value of last ADC measurement
 	LED_delay = 1; // one digit emitting time
@@ -109,23 +162,32 @@ int main() {
 
 	_asm("rim");    // enable interrupts
 	
-	display_int(i++);
+	display_int(i);
 	
 	show_next_digit(); // show zero
 	
 	// Loop
-	do {
+	do 
+	{
+		U8 result;
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
-			i++;
+			if(i && counter_enabled)
+			{
+				i--;
+				if(!i)
+				{
+					counter_enabled = 0;
+				}
+			}
 			if((i % 100) > 59)
 			{
-				i += 40;
+				i -= 40;
 			}
 			display_int(i);
 			
-			if(i > 9999) i = -1200;
+			//if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
 		
 			// values less than 206 == 0
@@ -133,8 +195,31 @@ int main() {
 		if((U8)(Global_time - T_LED) > LED_delay)
 		{
 			T_LED = Global_time;
-			show_next_digit();
-			
+			show_next_digit();			
+		}
+		result = scan_keys();
+		if(result & KEY_2_PRESSED)
+		{
+			i+=100;
+			display_int(i);
+		}
+		if(result & KEY_3_PRESSED)
+		{
+			if(i >= 100)
+			{
+				i-=100;
+				display_int(i);
+			}
+		}
+		if(result & KEY_0_PRESSED)
+		{
+			counter_enabled = 1;
+		}
+		if(result & KEY_1_PRESSED)
+		{
+			counter_enabled = 0;
+			i = 0;
+			display_int(i);
 		}
 	} while(1);
 }
