@@ -84,6 +84,10 @@ int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
 	int i = 00;
+	Global_time = 0L; // global time in ms
+	ADC_value = 0; // value of last ADC measurement
+	LED_delay = 1; // one digit emitting time
+
 	// Configure clocking
 	CLK_CKDIVR = 0; // F_HSI = 16MHz, f_CPU = 16MHz
 	// Configure pins
