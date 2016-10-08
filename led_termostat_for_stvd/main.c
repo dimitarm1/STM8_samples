@@ -134,8 +134,10 @@ int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
 	int i = 00;
+	U8 beep_delay = 0;
 	U8 counter_enabled = 0;
 	key_state = 0;
+
 	keys_scan_buffer[0] = keys_scan_buffer[1] = keys_scan_buffer[2] = keys_scan_buffer[3] = 0;
 	Global_time = 0L; // global time in ms
 	ADC_value = 0; // value of last ADC measurement
@@ -159,6 +161,7 @@ int main() {
 	// auto-reload + interrupt on overflow + enable
 	TIM1_CR1 = TIM_CR1_APRE | TIM_CR1_URS | TIM_CR1_CEN;
 	// configure ADC
+  BEEP_CSR = 0x1e; // Configure BEEP
 
 	_asm("rim");    // enable interrupts
 	
@@ -195,7 +198,15 @@ int main() {
 		if((U8)(Global_time - T_LED) > LED_delay)
 		{
 			T_LED = Global_time;
-			show_next_digit();			
+			show_next_digit();	
+			if(beep_delay)
+			{
+				beep_delay--;
+				if(!beep_delay)
+				{
+					BEEP_CSR = 0x1e; // Configure BEEP
+				}
+			}
 		}
 		result = scan_keys();
 		if(result & KEY_2_PRESSED)
@@ -220,6 +231,11 @@ int main() {
 			counter_enabled = 0;
 			i = 0;
 			display_int(i);
+		}
+		if(result & 0x0f)
+		{
+			BEEP_CSR = 0xbe;
+			beep_delay = 10;
 		}
 	} while(1);
 }
