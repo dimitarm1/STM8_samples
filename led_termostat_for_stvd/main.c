@@ -44,6 +44,15 @@ int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
 U16 keys_scan_buffer[4];
 U8 key_state;
+typedef struct settings_t{
+	U8 pre_time;
+	U8 cool_time;
+}settings_t;
+typedef struct {
+	U8 minutes;
+	U8 hours_L;
+	U8 hours_H;
+}work_hours_t;
 
 
 @interrupt void HandledInterrupt (void)
@@ -129,11 +138,55 @@ U8 scan_keys(void)
 	return result;
 }
 
+/*
+ * add_minutes_to_eeprom(U8 minutes)
+ * This function updates worked hours stored in EEPROM 
+ *
+*/
+void add_minutes_to_eeprom(U8 minutes)
+{
+	U8 tmp;
+	work_hours_t *work_hours = (work_hours_t*)EEPROM_START_ADDR;
+	if(minutes > 59)
+	{
+		tmp = minutes/60;
+		minutes = minutes % 60;
+	}
+	minutes = work_hours->minutes + minutes;
+  if(minutes > 59)
+	{
+		minutes = minutes - 60;
+		tmp+=1;
+	}
+	//
+  //  Check if the EEPROM is write-protected.  If it is then unlock the EEPROM.
+  //
+	if (FLASH_IAPSR & FLASH_IAPSR_DUL == 0)
+	{
+		FLASH_DUKR = EEPROM_KEY1;
+		FLASH_DUKR = EEPROM_KEY2;
+	}
+	//
+	//  Write the data to the EEPROM.
+	//
+	work_hours->minutes = minutes;
+	tmp = tmp + work_hours->hours_L;
+	if (tmp > 99)
+	{
+		tmp -= 100;
+		work_hours->hours_H = work_hours->hours_H + 1;
+	}
+	work_hours->hours_L = tmp;
+	//
+  //  Now write protect the EEPROM.
+	//
+	FLASH_IAPSR = FLASH_IAPSR & ~FLASH_IAPSR_DUL;
+}
 
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
-	int i = 00;
+	int i = 00, j = 00;
 	U8 beep_delay = 0;
 	U8 counter_enabled = 0;
 	key_state = 0;
@@ -176,7 +229,7 @@ int main() {
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
-			if(i && counter_enabled)
+			if(i && counter_enabled == 2)
 			{
 				i--;
 				if(!i)
@@ -188,7 +241,33 @@ int main() {
 			{
 				i -= 40;
 			}
-			display_int(i);
+			if(counter_enabled == 1)
+			{
+				if(j)
+				{
+					j--;
+					if(!j)
+				  {
+						i++;
+					}
+					if((j % 100) > 59)
+					{
+						j -= 40;
+					}
+				}
+				if(!j)
+				{
+					counter_enabled = 2;
+				}
+		  }
+			if(counter_enabled == 1)
+			{
+				display_int(-j);
+			}
+			else
+			{
+				display_int(i);
+			}
 			
 			//if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
@@ -209,34 +288,57 @@ int main() {
 			}
 		}
 		result = scan_keys();
-		if(result & KEY_2_PRESSED)
-		{
-			i+=100;
-			display_int(i);
-		}
-		if(result & KEY_3_PRESSED)
-		{
-			if(i >= 100)
-			{
-				i-=100;
-				display_int(i);
-			}
-		}
 		if(result & KEY_0_PRESSED)
 		{
-			counter_enabled = 1;
+			if(counter_enabled == 1)
+			{
+				BEEP_CSR = 0xbe;
+				beep_delay = 200;
+				counter_enabled = 2;
+				i++;
+				j = 0;
+			}
+			if(!counter_enabled)
+			{
+				BEEP_CSR = 0xbe;
+				beep_delay = 10;
+				if(i>0)
+				{
+					counter_enabled = 1;
+					j = 0x100;
+				}
+		  }
 		}
+		else if(!counter_enabled)
+		{
+			if(result & KEY_2_PRESSED)
+			{
+				i+=100;
+				display_int(i);
+				BEEP_CSR = 0xbe;
+				beep_delay = 10;
+			}
+			if(result & KEY_3_PRESSED)
+			{
+				if(i >= 100)
+				{
+					i-=100;
+					display_int(i);
+				}
+				BEEP_CSR = 0xbe;
+				beep_delay = 10;
+			}
+		}
+		
 		if(result & KEY_1_PRESSED)
 		{
 			counter_enabled = 0;
-			i = 0;
+			j = i = 0;
 			display_int(i);
-		}
-		if(result & 0x0f)
-		{
 			BEEP_CSR = 0xbe;
-			beep_delay = 10;
+			beep_delay = 40;					
 		}
+		
 	} while(1);
 }
 

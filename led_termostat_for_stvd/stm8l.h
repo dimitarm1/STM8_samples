@@ -119,6 +119,7 @@ typedef unsigned long U32;
 #define FLASH_FPR	*(unsigned char*)0x505D
 #define FLASH_NFPR	*(unsigned char*)0x505E
 #define FLASH_IAPSR	*(unsigned char*)0x505F
+#define FLASH_IAPSR_DUL	(1<<3) // Write protection status bit
 #define FLASH_PUKR	*(unsigned char*)0x5062 // progmem unprotection
 #define FLASH_DUKR	*(unsigned char*)0x5064 // EEPROM unprotection
 
