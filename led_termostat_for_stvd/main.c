@@ -53,6 +53,7 @@ typedef struct {
 	U8 hours_L;
 	U8 hours_H;
 }work_hours_t;
+work_hours_t *work_hours;
 
 
 @interrupt void HandledInterrupt (void)
@@ -145,8 +146,8 @@ U8 scan_keys(void)
 */
 void add_minutes_to_eeprom(U8 minutes)
 {
-	U8 tmp;
-	work_hours_t *work_hours = (work_hours_t*)EEPROM_START_ADDR;
+	U8 tmp = 0;
+	
 	if(minutes > 59)
 	{
 		tmp = minutes/60;
@@ -161,7 +162,7 @@ void add_minutes_to_eeprom(U8 minutes)
 	//
   //  Check if the EEPROM is write-protected.  If it is then unlock the EEPROM.
   //
-	if (FLASH_IAPSR & FLASH_IAPSR_DUL == 0)
+	if ((FLASH_IAPSR & FLASH_IAPSR_DUL) == 0)
 	{
 		FLASH_DUKR = EEPROM_KEY1;
 		FLASH_DUKR = EEPROM_KEY2;
@@ -188,8 +189,10 @@ int main() {
 	unsigned long T_time = 0L; // timer
 	int i = 00, j = 00;
 	U8 beep_delay = 0;
+	U8 show_time_delay = 0;
 	U8 counter_enabled = 0;
 	key_state = 0;
+	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
 
 	keys_scan_buffer[0] = keys_scan_buffer[1] = keys_scan_buffer[2] = keys_scan_buffer[3] = 0;
 	Global_time = 0L; // global time in ms
@@ -217,7 +220,7 @@ int main() {
   BEEP_CSR = 0x1e; // Configure BEEP
 
 	_asm("rim");    // enable interrupts
-	
+		
 	display_int(i);
 	
 	show_next_digit(); // show zero
@@ -225,7 +228,8 @@ int main() {
 	// Loop
 	do 
 	{
-		U8 result;
+		U8 *test = (U8*)0x4010;
+		U8 result;		
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
@@ -258,6 +262,7 @@ int main() {
 				if(!j)
 				{
 					counter_enabled = 2;
+					add_minutes_to_eeprom(i/100);
 				}
 		  }
 			if(counter_enabled == 1)
@@ -286,26 +291,46 @@ int main() {
 					BEEP_CSR = 0x1e; // Configure BEEP
 				}
 			}
+			if(show_time_delay)
+			{
+			  show_time_delay--;
+				if(!show_time_delay)
+				{
+					i = 0; // Stop show time
+				}
+				
+			}
 		}
 		result = scan_keys();
-		if(result & KEY_0_PRESSED)
+		if(result && 0x03)
+		{
+			show_time_delay = 0;
+		}
+		if(result & KEY_0_PRESSED) // Start
 		{
 			if(counter_enabled == 1)
 			{
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
 				beep_delay = 200;
 				counter_enabled = 2;
+				add_minutes_to_eeprom(i/100);
 				i++;
 				j = 0;
 			}
 			if(!counter_enabled)
 			{
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
 				beep_delay = 10;
 				if(i>0)
 				{
 					counter_enabled = 1;
 					j = 0x100;
+				}
+				else
+				{
+					// Show Time
+					i = work_hours->minutes + (int)(work_hours->hours_L) * 100 + (int)(work_hours->hours_H) * 10000;
+					show_time_delay = 245;
 				}
 		  }
 		}
@@ -315,7 +340,7 @@ int main() {
 			{
 				i+=100;
 				display_int(i);
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
 				beep_delay = 10;
 			}
 			if(result & KEY_3_PRESSED)
@@ -325,17 +350,17 @@ int main() {
 					i-=100;
 					display_int(i);
 				}
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
 				beep_delay = 10;
 			}
 		}
 		
-		if(result & KEY_1_PRESSED)
+		if(result & KEY_1_PRESSED) //Stop
 		{
 			counter_enabled = 0;
 			j = i = 0;
 			display_int(i);
-			BEEP_CSR = 0xbe;
+			//BEEP_CSR = 0xbe;
 			beep_delay = 40;					
 		}
 		
