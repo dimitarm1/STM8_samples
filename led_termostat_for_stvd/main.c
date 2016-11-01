@@ -33,11 +33,13 @@
 #define KEY_1_PRESSED  0x02
 #define KEY_2_PRESSED  0x04
 #define KEY_3_PRESSED  0x08
+#define KEY_PRESSED    0x0F
 
 #define KEY_0_RELEASED 0x10
 #define KEY_1_RELEASED 0x20
 #define KEY_2_RELEASED 0x40
 #define KEY_3_RELEASED 0x80
+#define KEY_RELEASED   0xF0
 
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
@@ -184,12 +186,40 @@ void add_minutes_to_eeprom(U8 minutes)
 	FLASH_IAPSR = FLASH_IAPSR & ~FLASH_IAPSR_DUL;
 }
 
+/*
+ * void clear_eeprom()
+ * clear the eeprom used 
+ *
+*/
+void clear_eeprom(void)
+{	
+	//
+  //  Check if the EEPROM is write-protected.  If it is then unlock the EEPROM.
+  //
+	if ((FLASH_IAPSR & FLASH_IAPSR_DUL) == 0)
+	{
+		FLASH_DUKR = EEPROM_KEY1;
+		FLASH_DUKR = EEPROM_KEY2;
+	}
+	//
+	//  Write the data to the EEPROM.
+	//
+	work_hours->minutes = 0;
+	work_hours->hours_L = 0;
+	work_hours->hours_H = 0;
+	
+	//
+  //  Now write protect the EEPROM.
+	//
+	FLASH_IAPSR = FLASH_IAPSR & ~FLASH_IAPSR_DUL;
+}
+
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
 	int i = 00, j = 00;
 	U8 beep_delay = 0;
-	U8 show_time_delay = 0;
+	int show_time_delay = 0;
 	U8 counter_enabled = 0;
 	key_state = 0;
 	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
@@ -235,11 +265,16 @@ int main() {
 			T_time = Global_time;
 			if(i && counter_enabled == 2)
 			{
+				PA_ODR |= (1<<2); // Relay is on
 				i--;
 				if(!i)
 				{
-					counter_enabled = 0;
+					counter_enabled = 0;					
 				}
+			}
+			else
+			{
+				PA_ODR &= ~(1<<2); // Relay is on
 			}
 			if((i % 100) > 59)
 			{
@@ -301,16 +336,13 @@ int main() {
 				
 			}
 		}
-		result = scan_keys();
-		if(result && 0x03)
-		{
-			show_time_delay = 0;
-		}
+		result = scan_keys();		
+		
 		if(result & KEY_0_PRESSED) // Start
 		{
 			if(counter_enabled == 1)
 			{
-				//BEEP_CSR = 0xbe;
+				BEEP_CSR = 0xbe;
 				beep_delay = 200;
 				counter_enabled = 2;
 				add_minutes_to_eeprom(i/100);
@@ -319,9 +351,9 @@ int main() {
 			}
 			if(!counter_enabled)
 			{
-				//BEEP_CSR = 0xbe;
+				BEEP_CSR = 0xbe;
 				beep_delay = 10;
-				if(i>0)
+				if(show_time_delay == 0 && i>0)
 				{
 					counter_enabled = 1;
 					j = 0x100;
@@ -330,28 +362,36 @@ int main() {
 				{
 					// Show Time
 					i = work_hours->minutes + (int)(work_hours->hours_L) * 100 + (int)(work_hours->hours_H) * 10000;
-					show_time_delay = 245;
+					show_time_delay = 2450;
 				}
 		  }
 		}
-		else if(!counter_enabled)
-		{
-			if(result & KEY_2_PRESSED)
+		else 
+		{			
+			if(result && show_time_delay)
 			{
-				i+=100;
-				display_int(i);
-				//BEEP_CSR = 0xbe;
-				beep_delay = 10;
-			}
-			if(result & KEY_3_PRESSED)
+				i = 0;
+				show_time_delay = 0;
+			}			
+			if(!counter_enabled)
 			{
-				if(i >= 100)
+				if(result & KEY_3_PRESSED)
 				{
-					i-=100;
+					i+=100;
 					display_int(i);
+					BEEP_CSR = 0xbe;
+					beep_delay = 10;
 				}
-				//BEEP_CSR = 0xbe;
-				beep_delay = 10;
+				if(result & KEY_2_PRESSED)
+				{
+					if(i >= 100)
+					{
+						i-=100;
+						display_int(i);
+					}
+					BEEP_CSR = 0xbe;
+					beep_delay = 10;
+				}
 			}
 		}
 		
@@ -360,9 +400,17 @@ int main() {
 			counter_enabled = 0;
 			j = i = 0;
 			display_int(i);
-			//BEEP_CSR = 0xbe;
-			beep_delay = 40;					
+			BEEP_CSR = 0xbe;
+			beep_delay = 40;
+			show_time_delay = 0;			
 		}
+		if((result & KEY_PRESSED) == KEY_PRESSED && Global_time < 1000)
+		{
+			BEEP_CSR = 0xbe;
+			beep_delay = 40;		
+			clear_eeprom();
+		}
+		
 		
 	} while(1);
 }
