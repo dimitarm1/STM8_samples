@@ -274,7 +274,7 @@ int main() {
 			}
 			else
 			{
-				PA_ODR &= ~(1<<2); // Relay is on
+				PA_ODR &= ~(1<<2); // Relay is off
 			}
 			if((i % 100) > 59)
 			{
@@ -340,7 +340,7 @@ int main() {
 		
 		if(result & KEY_0_PRESSED) // Start
 		{
-			if(counter_enabled == 1)
+			if(counter_enabled == 1 && j < 559) // 559 - wait 3 sec from 1-st start press
 			{
 				BEEP_CSR = 0xbe;
 				beep_delay = 200;
@@ -356,7 +356,7 @@ int main() {
 				if(show_time_delay == 0 && i>0)
 				{
 					counter_enabled = 1;
-					j = 0x100;
+					j = 601; // 6 minutes pre time 
 				}
 				else
 				{
