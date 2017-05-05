@@ -57,6 +57,13 @@ typedef struct {
 }work_hours_t;
 work_hours_t *work_hours;
 
+#define BUFFER_SIZE 5
+unsigned char buffer[BUFFER_SIZE];
+unsigned char* ptecr = buffer;
+unsigned char* ptecr_prev = buffer;
+
+// Function prototypes
+
 
 @interrupt void HandledInterrupt (void)
 {
@@ -84,33 +91,6 @@ work_hours_t *work_hours;
 }
 
 
-/*	Send a char to the SCI.
- */
-void outch(char c)
-	{
-//	while (!(USART_SR & TRDE))	/* wait for READY */
-	//	;
-//	USART_DR = c;			/* send it */
-	}
-
-/*	Character reception routine.
- *	This routine is called on interrupt.
- *	It puts the received char in the buffer.
- */
-@interrupt void recept(void)
-	{
-//	USART_SR;			/* clear interrupt */
-//	*ptecr++ = USART_DR;		/* get the char */
-//	if (ptecr >= &buffer[SIZE])	/* put it in buffer */
-//		ptecr = buffer;
-	}
-
-/*	Scan pushbuttons routine.
- *	This routine is called in the main loop.
- *	It scans for key states, sets the new state 
- *  and returns a mask of buttons with changed state.
- *  Newly pressed in the bits 0-3, newly released in bits 4-7
- */
 U8 scan_keys(void)
 {
 	U8 i, result = 0;
@@ -214,6 +194,51 @@ void clear_eeprom(void)
 	FLASH_IAPSR = FLASH_IAPSR & ~FLASH_IAPSR_DUL;
 }
 
+#define UART_PORT		PD
+#define UART_TX_PIN		GPIO_PIN5
+void uart_init(void){
+	// PD5 - UART2_TX
+	PD_DDR |= UART_TX_PIN;
+	PD_CR1 |= UART_TX_PIN;	
+// Configure UART
+	// 8 bit, no parity, 1 stop (UART_CR1/3 = 0 - reset value)
+	// 57600 on 16MHz: BRR1=0x11, BRR2=0x06
+	UART1_BRR1 = 0x11; UART1_BRR2 = 0x06;
+//	UART1_CR2 = /*UART_CR2_TEN |*/ UART_CR2_REN | UART_CR2_RIEN; // Allow RX/TX, generate ints on rx
+}
+
+/**
+ * Send one byte through UART
+ * @param byte - data to send
+ */
+void UART_send_byte(U8 byte){
+	while(!(UART1_SR & UART_SR_TXE)); // wait until previous byte transmitted
+	UART1_DR = byte;
+}
+
+/*	Character reception routine.
+ *	This routine is called on interrupt.
+ *	It puts the received char in the buffer.
+ */
+@interrupt void recept(void)
+{
+	char tmp;
+	tmp = UART1_SR;			/* clear interrupt */
+	*ptecr++ = tmp = UART1_DR;		/* get the char */
+	if (ptecr >= &buffer[BUFFER_SIZE])	/* put it in buffer */
+	{
+		  ptecr = buffer;
+	}
+	UART_send_byte(tmp);
+}
+
+/*	Scan pushbuttons routine.
+ *	This routine is called in the main loop.
+ *	It scans for key states, sets the new state 
+ *  and returns a mask of buttons with changed state.
+ *  Newly pressed in the bits 0-3, newly released in bits 4-7
+ */
+
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
 	unsigned long T_time = 0L; // timer
@@ -234,6 +259,7 @@ int main() {
 	// Configure pins
 	CFG_GCR |= 1; // disable SWIM
 	LED_init();
+	uart_init();
 	// Configure Timer1
 	// prescaler = f_{in}/f_{tim1} - 1
 	// set Timer1 to 1MHz: 1/1 - 1 = 15
@@ -263,6 +289,7 @@ int main() {
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
 			T_time = Global_time;
+			UART_send_byte(32 + j%10);
 			if(i && counter_enabled == 2)
 			{
 				PA_ODR |= (1<<2); // Relay is on
@@ -409,9 +436,7 @@ int main() {
 			BEEP_CSR = 0xbe;
 			beep_delay = 40;		
 			clear_eeprom();
-		}
-		
-		
+		}				
 	} while(1);
 }
 
