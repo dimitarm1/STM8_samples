@@ -200,11 +200,14 @@ void uart_init(void){
 	// PD5 - UART2_TX
 	PD_DDR |= UART_TX_PIN;
 	PD_CR1 |= UART_TX_PIN;	
+	UART1_CR2 = 0;
 // Configure UART
 	// 8 bit, no parity, 1 stop (UART_CR1/3 = 0 - reset value)
-	// 57600 on 16MHz: BRR1=0x11, BRR2=0x06
-	UART1_BRR1 = 0x11; UART1_BRR2 = 0x06;
-//	UART1_CR2 = /*UART_CR2_TEN |*/ UART_CR2_REN | UART_CR2_RIEN; // Allow RX/TX, generate ints on rx
+	// 1200 on 16MHz: BRR1=0x41, BRR2=0x35
+	UART1_BRR1 = 0xCD; UART1_BRR2 = 0x33; //taka stava!!
+	UART1_CR2 = UART_CR2_TEN | UART_CR2_REN | UART_CR2_RIEN; // Allow RX/TX, 
+	 // Allow RX/TX, generate ints on rx
+	//UART1_CR1 = 0; // Enable UART?	 
 }
 
 /**
@@ -255,7 +258,7 @@ int main() {
 	LED_delay = 1; // one digit emitting time
 
 	// Configure clocking
-	CLK_CKDIVR = 0; // F_HSI = 16MHz, f_CPU = 16MHz
+	CLK_CKDIVR = 2<<3; // F_HSI = 16MHz, f_CPU = 16MHz
 	// Configure pins
 	CFG_GCR |= 1; // disable SWIM
 	LED_init();
@@ -264,7 +267,7 @@ int main() {
 	// prescaler = f_{in}/f_{tim1} - 1
 	// set Timer1 to 1MHz: 1/1 - 1 = 15
 	TIM1_PSCRH = 0;
-	TIM1_PSCRL = 15; // LSB should be written last as it updates prescaler
+	TIM1_PSCRL = 3; // LSB should be written last as it updates prescaler
 	// auto-reload each 1ms: TIM_ARR = 1000 = 0x03E8
 	TIM1_ARRH = 0x03;
 	TIM1_ARRL = 0xE8;
@@ -362,7 +365,7 @@ int main() {
 				}
 				
 			}
-		}
+		
 		result = scan_keys();		
 		
 		if(result & KEY_0_PRESSED) // Start
@@ -436,7 +439,8 @@ int main() {
 			BEEP_CSR = 0xbe;
 			beep_delay = 40;		
 			clear_eeprom();
-		}				
+		}		
+		}		
 	} while(1);
 }
 
