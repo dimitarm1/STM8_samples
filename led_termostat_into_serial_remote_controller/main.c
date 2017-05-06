@@ -61,6 +61,7 @@ U8 key_state;
 typedef struct settings_t{
 	U8 pre_time;
 	U8 cool_time;
+	U8 address;
 }settings_t;
 typedef struct {
 	U8 minutes;
@@ -68,6 +69,7 @@ typedef struct {
 	U8 hours_H;
 }work_hours_t;
 work_hours_t *work_hours;
+settings_t *settings;
 
 #define BUFFER_SIZE 5
 unsigned char buffer[BUFFER_SIZE];
@@ -93,6 +95,7 @@ char receiver_state;
 int ToBCD(int value);
 int FromBCD(int value);
 void updateDeviceStatus(void);
+void increment_address_in_EEPROM(void);
 
 
 @interrupt void HandledInterrupt (void)
@@ -149,6 +152,27 @@ U8 scan_keys(void)
 		
 	}
 	return result;
+}
+
+void increment_address_in_EEPROM(void)
+{
+	U8 tmp = settings->address & 0x0f;
+	//
+  //  Check if the EEPROM is write-protected.  If it is then unlock the EEPROM.
+  //
+	if ((FLASH_IAPSR & FLASH_IAPSR_DUL) == 0)
+	{
+		FLASH_DUKR = EEPROM_KEY1;
+		FLASH_DUKR = EEPROM_KEY2;
+	}
+	//
+	//  Write the data to the EEPROM.
+	//
+	settings->address = (tmp+1)&0x0f;
+	//
+  //  Now write protect the EEPROM.
+	//
+	FLASH_IAPSR = FLASH_IAPSR & ~FLASH_IAPSR_DUL;
 }
 
 /*
@@ -278,7 +302,7 @@ void UART_send_byte(U8 byte){
        * 4 - stop - may be not implemented in some controllers
        * 5 - set main time
        */
-		if (device == 6)
+		if (device == settings->address)
       switch(data & 0x07)
       {
       case 0: // ststus
@@ -461,6 +485,7 @@ int main() {
 	U8 counter_enabled = 0;
 	key_state = 0;
 	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
+	settings = (settings_t*)(EEPROM_START_ADDR + sizeof(work_hours_t));
 
 	keys_scan_buffer[0] = keys_scan_buffer[1] = keys_scan_buffer[2] = keys_scan_buffer[3] = 0;
 	Global_time = 0L; // global time in ms
@@ -654,6 +679,11 @@ int main() {
 				beep_delay = 40;		
 				clear_eeprom();
 			}		
+			if((result & KEY_PRESSED) == KEY_1_PRESSED && Global_time < 1000)
+			{
+				increment_address_in_EEPROM();
+				display_int(settings->address);
+			}
 		}	
 		updateDeviceStatus();
 	} while(1);
