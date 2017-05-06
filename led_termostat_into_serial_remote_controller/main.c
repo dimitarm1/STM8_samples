@@ -41,6 +41,18 @@
 #define KEY_3_RELEASED 0x80
 #define KEY_RELEASED   0xF0
 
+#define STATUS_FREE    0
+#define STATUS_WORKING 1
+#define STATUS_COOLING 2
+#define STATUS_WAITING 3
+
+#define STATE_WAIT_COMMAND 0
+#define STATE_WAIT_PRE_TIME 1
+#define STATE_WAIT_MAIN_TIME 2
+#define STATE_WAIT_COOL_TIME 3
+#define STATE_WAIT_CHECKSUM 4
+#define STATE_WAIT_VALIDATE_START 5
+
 unsigned long Global_time = 0L; // global time in ms
 int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
@@ -61,6 +73,18 @@ work_hours_t *work_hours;
 unsigned char buffer[BUFFER_SIZE];
 unsigned char* ptecr = buffer;
 unsigned char* ptecr_prev = buffer;
+
+unsigned char device = 255;
+unsigned char status;
+unsigned char result_1;
+unsigned char result_2;
+int pre_time = 0;
+int main_time = 0;
+int cool_time = 0;
+unsigned char device_status = STATUS_FREE;
+unsigned char prescaler =  60;
+int receiver_timeout;
+char receiver_state;
 
 // Function prototypes
 
@@ -235,17 +259,80 @@ void UART_send_byte(U8 byte){
 	UART_send_byte(tmp);
 }
 
-/*	Scan pushbuttons routine.
- *	This routine is called in the main loop.
- *	It scans for key states, sets the new state 
- *  and returns a mask of buttons with changed state.
- *  Newly pressed in the bits 0-3, newly released in bits 4-7
- */
+int ToBCD(int value)
+{  
+  int digits[6];
+  int result;
+  digits[0] = value %10;
+  digits[1] = (value/10) % 10;
+  digits[2] = (value/100) % 10;
+	digits[3] = (value/1000)%10;
+  digits[4] = (value/10000) % 10;
+  digits[5] = (value/100000) % 10;
+  result = digits[0] | (digits[1]<<4) | (digits[2]<<8);
+  return result;
+}
 
+int FromBCD(int value){
+  int digits[6];
+  int result;
+  digits[0] = value & 0x0F;
+  digits[1] = (value>>4) & 0x0F;
+  digits[2] = (value>>8) & 0x0F;
+	digits[3] = (value>>12) & 0x0F;
+  digits[4] = (value>>16) & 0x0F;
+  digits[5] = (value>>20) & 0x0F;
+  result = digits[0] + digits[1]*10 + digits[2]*100 + digits[3]*1000 + digits[4]*10000 + digits[5]*100000;
+  return result;
+}
+
+void updateDeviceStatus(void)
+{
+	if(cool_time > 0)
+	{
+		if(pre_time > 0)
+		{
+				device_status = STATUS_WAITING;
+		}
+		else if(main_time > 0)
+		{
+				device_status = STATUS_WORKING;
+		}
+		else 
+		{
+				device_status = STATUS_COOLING;
+		}
+	}
+  else
+  {
+      device_status = STATUS_FREE;
+  }
+  
+  if( device_status == STATUS_WORKING)
+  {
+			PA_ODR |= (1<<2); // Relay is on
+  }
+  else
+  {
+      PA_ODR &= ~(1<<2); // Relay is off
+  }
+//  if( device_status == STATUS_WORKING || device_status == STATUS_COOLING)
+//  {
+//      digitalWrite(OUPTUT_OHLAJDANE_PIN,1);
+//  }
+//  else
+//  {
+//      digitalWrite(OUPTUT_OHLAJDANE_PIN,0);
+//  }
+//  Serial.print(F("\nNew device status:"));
+//  Serial.print( device_status);
+}
+
+
+//----------------------------- MAIN --------------------------
 int main() {
 	unsigned long T_LED = 0L;  // time of last digit update
-	unsigned long T_time = 0L; // timer
-	int i = 00, j = 00;
+	unsigned long T_time = 0L; // timer	
 	U8 beep_delay = 0;
 	int show_time_delay = 0;
 	U8 counter_enabled = 0;
@@ -280,7 +367,7 @@ int main() {
 
 	_asm("rim");    // enable interrupts
 		
-	display_int(i);
+	display_int(0);
 	
 	show_next_digit(); // show zero
 	
@@ -291,54 +378,32 @@ int main() {
 		U8 result;		
 		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
 		{
-			T_time = Global_time;
-			UART_send_byte(32 + j%10);
-			if(i && counter_enabled == 2)
-			{
-				PA_ODR |= (1<<2); // Relay is on
-				i--;
-				if(!i)
-				{
-					counter_enabled = 0;					
-				}
-			}
-			else
-			{
-				PA_ODR &= ~(1<<2); // Relay is off
-			}
-			if((i % 100) > 59)
-			{
-				i -= 40;
-			}
-			if(counter_enabled == 1)
-			{
-				if(j)
-				{
-					j--;
-					if(!j)
+			// Each second -->
+			T_time = Global_time;	
+			switch(device_status){
+				case STATUS_FREE:
+					if(show_time_delay == 0) display_int(main_time);
+				break;
+				case STATUS_WAITING:
+					if(pre_time) pre_time--;
+					if(!pre_time)
 				  {
-						i++;
+						main_time++;
 					}
-					if((j % 100) > 59)
-					{
-						j -= 40;
-					}
-				}
-				if(!j)
-				{
-					counter_enabled = 2;
-					add_minutes_to_eeprom(i/100);
-				}
-		  }
-			if(counter_enabled == 1)
-			{
-				display_int(-j);
+					display_int(-pre_time);
+				break;
+				case STATUS_WORKING:
+					if(main_time)	main_time--;
+					display_int(main_time);
+				break;
+				case STATUS_COOLING:
+					if(cool_time)	cool_time--;
+					display_int(cool_time);
+				break;
+				default:
+				break;
 			}
-			else
-			{
-				display_int(i);
-			}
-			
+	
 			//if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
 		
@@ -346,6 +411,7 @@ int main() {
 		}
 		if((U8)(Global_time - T_LED) > LED_delay)
 		{
+			// Each ~3 mSec -->
 			T_LED = Global_time;
 			show_next_digit();	
 			if(beep_delay)
@@ -361,86 +427,98 @@ int main() {
 			  show_time_delay--;
 				if(!show_time_delay)
 				{
-					i = 0; // Stop show time
-				}
-				
+					display_int(main_time); // Stop show time
+				}				
 			}
-		
-		result = scan_keys();		
-		
-		if(result & KEY_0_PRESSED) // Start
-		{
-			if(counter_enabled == 1 && j < 859) // 859 - wait 3 sec from 1-st start press
+			
+			result = scan_keys();		
+			
+			if(result & KEY_0_PRESSED) // Start
 			{
-				BEEP_CSR = 0xbe;
-				beep_delay = 200;
-				counter_enabled = 2;
-				add_minutes_to_eeprom(i/100);
-				i++;
-				j = 0;
-			}
-			if(!counter_enabled)
-			{
-				BEEP_CSR = 0xbe;
-				beep_delay = 10;
-				if(show_time_delay == 0 && i>0)
+				if(device_status == STATUS_WAITING && pre_time < 9*60) // - wait 3 sec from 1-st start press
 				{
-					counter_enabled = 1;
-					j = 901; // 6 minutes pre time 
+					BEEP_CSR = 0xbe;
+					beep_delay = 200;
+					counter_enabled = 2;
+					add_minutes_to_eeprom(main_time/60);
+					main_time++;
+					pre_time = 0;
 				}
-				else
+				if(device_status == STATUS_FREE)
 				{
-					// Show Time
-					i = work_hours->minutes + (int)(work_hours->hours_L) * 100 + (int)(work_hours->hours_H) * 10000;
-					show_time_delay = 2450;
-				}
-		  }
-		}
-		else 
-		{			
-			if(result && show_time_delay)
-			{
-				i = 0;
-				show_time_delay = 0;
-			}			
-			if(!counter_enabled)
-			{
-				if(result & KEY_3_PRESSED)
-				{
-					i+=100;
-					display_int(i);
 					BEEP_CSR = 0xbe;
 					beep_delay = 10;
-				}
-				if(result & KEY_2_PRESSED)
-				{
-					if(i >= 100)
-					{
-						i-=100;
-						display_int(i);
+					if(show_time_delay == 0 && main_time>0)
+					{						
+						if(pre_time > 0)
+						{
+							cool_time = 3*60; // Indicate manual start using Cool Time							
+						}
+						else
+						{
+							pre_time = 9*60; // Initial wait itme for manual operation
+							device_status == STATUS_WAITING;
+						}
 					}
-					BEEP_CSR = 0xbe;
-					beep_delay = 10;
+					else
+					{						
+						// Show Time
+						int i = work_hours->minutes + (int)(work_hours->hours_L) * 60 + (int)(work_hours->hours_H) * 60*60;
+						display_int(i);
+						show_time_delay = 6000;
+					}
 				}
 			}
-		}
-		
-		if(result & KEY_1_PRESSED) //Stop
-		{
-			counter_enabled = 0;
-			j = i = 0;
-			display_int(i);
-			BEEP_CSR = 0xbe;
-			beep_delay = 40;
-			show_time_delay = 0;			
-		}
-		if((result & KEY_PRESSED) == KEY_PRESSED && Global_time < 1000)
-		{
-			BEEP_CSR = 0xbe;
-			beep_delay = 40;		
-			clear_eeprom();
-		}		
-		}		
+			else 
+			{			
+				if(result && show_time_delay)
+				{
+					main_time = 0;
+					show_time_delay = 0;
+				}			
+				if(device_status == STATUS_FREE)
+				{
+					if(result & KEY_3_PRESSED)// plus
+					{
+						if(main_time < 60*30)	main_time+=60;
+						display_int(main_time);
+						BEEP_CSR = 0xbe;
+						beep_delay = 10;
+						pre_time = 9*60;
+					}
+					if(result & KEY_2_PRESSED)// minus
+					{
+						if(main_time >= 60)
+						{
+							main_time -=60;
+							display_int(main_time);
+						}
+						BEEP_CSR = 0xbe;
+						beep_delay = 10;
+					}
+				}
+			}
+			
+			if(result & KEY_1_PRESSED) //Stop
+			{				
+				main_time = pre_time = cool_time = 0;
+				if(device_status != STATUS_FREE)
+				{
+					cool_time = 3*60;
+					display_int(cool_time);
+				}
+				BEEP_CSR = 0xbe;
+				beep_delay = 40;
+				show_time_delay = 0;			
+			}
+			if((result & KEY_PRESSED) == KEY_PRESSED && Global_time < 1000)
+			{
+				BEEP_CSR = 0xbe;
+				beep_delay = 40;		
+				clear_eeprom();
+			}		
+		}	
+		updateDeviceStatus();
 	} while(1);
 }
 

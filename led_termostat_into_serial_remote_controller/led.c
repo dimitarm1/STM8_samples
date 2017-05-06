@@ -21,6 +21,8 @@
 
 #include "stm8l.h"
 #include "led.h"
+int ToBCD(int value);
+int FromBCD(int value);
 
 /*
  * bits no     7   6   5   4   3   2   1   0
@@ -217,8 +219,9 @@ void show_next_digit(){
 	if(N_current > 5) N_current = 0;
 }
 
+
 /**
- * convert integer value i into string and display it
+ * convert integer value in seconds and minutes into string and display it
  * @param i - value to display, -999 <= i <= 9999, if wrong, displays "---E"
  */
 void display_int(int I){
@@ -240,6 +243,7 @@ void display_int(int I){
 		sign = 1;
 		I *= -1;
 	}
+	I = I/3600 * 10000 + ((I%3600)/60)* 100 + I%60;
 	do{
 		rem = I % 10;
 		display_buffer[N] = rem;
