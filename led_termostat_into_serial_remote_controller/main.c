@@ -78,6 +78,9 @@ unsigned char device = 255;
 unsigned char status;
 unsigned char result_1;
 unsigned char result_2;
+unsigned char pre_time_serial = 0;
+unsigned char main_time_serial = 0;
+unsigned char cool_time_serial = 0;
 int pre_time = 0;
 int main_time = 0;
 int cool_time = 0;
@@ -87,6 +90,9 @@ int receiver_timeout;
 char receiver_state;
 
 // Function prototypes
+int ToBCD(int value);
+int FromBCD(int value);
+void updateDeviceStatus(void);
 
 
 @interrupt void HandledInterrupt (void)
@@ -249,40 +255,157 @@ void UART_send_byte(U8 byte){
  */
 @interrupt void recept(void)
 {
-	char tmp;
-	tmp = UART1_SR;			/* clear interrupt */
-	*ptecr++ = tmp = UART1_DR;		/* get the char */
-	if (ptecr >= &buffer[BUFFER_SIZE])	/* put it in buffer */
-	{
-		  ptecr = buffer;
-	}
-	UART_send_byte(tmp);
+	char data;
+	char device;
+	char checksum;
+	char time_in_hex;
+	data = UART1_SR;			/* clear interrupt */
+	*ptecr++ = data = UART1_DR;		/* get the char */
+//	if (ptecr >= &buffer[BUFFER_SIZE])	/* put it in buffer */
+//	{
+//		  ptecr = buffer;
+//	}
+	 if(data & 0x80)  // Command received
+    {
+      device = (data & 0x78)>>3;     
+      receiver_timeout = 40;       
+      /*
+ * commads:
+       * 0 - status 0-free, 1-Working, 2-COOLING, 3-WAITING
+       * 1 - start
+       * 2 - set pre-time
+       * 3 - set cool-time
+       * 4 - stop - may be not implemented in some controllers
+       * 5 - set main time
+       */
+		if (device == 6)
+      switch(data & 0x07)
+      {
+      case 0: // ststus
+        data = device_status<<6;
+        switch (device_status)
+        {
+          case STATUS_FREE:
+            break;
+          case STATUS_WORKING:
+            data = data | ToBCD(!!(main_time%60) + main_time/60);
+            break;
+          case STATUS_COOLING:
+            data = data | ToBCD(!!(cool_time%60) + cool_time/60);
+            break;
+          case STATUS_WAITING:
+            data = data | ToBCD(!!(pre_time%60) + pre_time/60);
+            break;
+          default:
+            break;
+        }
+        UART_send_byte(data);
+        receiver_state = STATE_WAIT_COMMAND;
+        break;
+      case 1: // start
+        receiver_state = STATE_WAIT_VALIDATE_START;                        
+        break;
+      case 2: // set pre_time
+        receiver_state = STATE_WAIT_PRE_TIME;                      
+        break;
+      case 3: // set cool_time
+        receiver_state = STATE_WAIT_COOL_TIME;                        
+        break;
+      case 4: // stop
+        receiver_state = STATE_WAIT_COMMAND;
+        if(pre_time == 0 && main_time > 0)
+        {
+          main_time = 0;                          
+        }
+        else
+        {
+          cool_time = 0;
+          main_time = 0;
+          pre_time = 0;                            
+        }
+        if(device_status > 0)
+        {
+          updateDeviceStatus();
+        }
+        break;
+      case 5: // set main time
+        receiver_state = STATE_WAIT_MAIN_TIME;            
+        break;
+      default:
+        break;
+      }
+    }
+    else // Data recevied ?
+    if(receiver_state != STATE_WAIT_COMMAND)
+    {
+      switch(receiver_state)
+      {
+        case STATE_WAIT_PRE_TIME:          
+          if(data>9)data = 9;
+          pre_time_serial = (data);          
+          receiver_state = STATE_WAIT_COMMAND;
+          break;
+        case STATE_WAIT_MAIN_TIME:                                        
+          main_time_serial = FromBCD(data);       
+          UART_send_byte(main_time_serial);
+          receiver_state = STATE_WAIT_COMMAND;
+          break;
+        case STATE_WAIT_COOL_TIME:       
+          if(data>9) data = 9;
+          cool_time_serial = (data);
+          time_in_hex = ToBCD(main_time_serial);
+          checksum = (pre_time_serial + cool_time_serial - time_in_hex - 5) & 0x7F;
+					UART_send_byte(checksum);
+          receiver_state = STATE_WAIT_CHECKSUM;                                                          
+          break;
+        case STATE_WAIT_CHECKSUM:   
+          time_in_hex = ToBCD(main_time_serial);
+          checksum = (pre_time_serial + cool_time_serial - time_in_hex - 5) & 0x7F;     
+          if((char)data == (char)checksum)
+          {
+            if(main_time_serial > 60) main_time_serial = 60;            
+						main_time = main_time_serial*60;
+						pre_time = pre_time_serial*60;
+						cool_time = cool_time_serial*60;
+            updateDeviceStatus();
+          }
+          receiver_state = STATE_WAIT_COMMAND;
+          break;
+        case STATE_WAIT_VALIDATE_START:        
+          if(data == 0x55) //validate start
+          {
+            pre_time = 0;
+            if(device_status > 0)
+            {                           
+              updateDeviceStatus();
+            }                                
+          }
+          receiver_state = STATE_WAIT_COMMAND;                                    
+          break;
+        default:
+          break;
+      }
+    }	
 }
 
 int ToBCD(int value)
 {  
-  int digits[6];
+  int digits[3];
   int result;
   digits[0] = value %10;
   digits[1] = (value/10) % 10;
-  digits[2] = (value/100) % 10;
-	digits[3] = (value/1000)%10;
-  digits[4] = (value/10000) % 10;
-  digits[5] = (value/100000) % 10;
+  digits[2] = (value/100) % 10;	
   result = digits[0] | (digits[1]<<4) | (digits[2]<<8);
   return result;
 }
 
 int FromBCD(int value){
-  int digits[6];
+  int digits[3];
   int result;
   digits[0] = value & 0x0F;
   digits[1] = (value>>4) & 0x0F;
   digits[2] = (value>>8) & 0x0F;
-	digits[3] = (value>>12) & 0x0F;
-  digits[4] = (value>>16) & 0x0F;
-  digits[5] = (value>>20) & 0x0F;
-  result = digits[0] + digits[1]*10 + digits[2]*100 + digits[3]*1000 + digits[4]*10000 + digits[5]*100000;
+  result = digits[0] + digits[1]*10 + digits[2]*100;
   return result;
 }
 
@@ -370,6 +493,8 @@ int main() {
 	display_int(0);
 	
 	show_next_digit(); // show zero
+	pre_time = main_time = cool_time = 0;
+	device_status = 0;
 	
 	// Loop
 	do 
@@ -408,9 +533,21 @@ int main() {
 			// check ADC value to light up DPs proportionaly
 		
 			// values less than 206 == 0
+			
 		}
 		if((U8)(Global_time - T_LED) > LED_delay)
 		{
+			if(receiver_state)
+			{
+				if(receiver_timeout)
+				{
+					receiver_timeout--;
+				}
+				else
+				{
+					receiver_state = STATE_WAIT_COMMAND;
+				}
+			}
 			// Each ~3 mSec -->
 			T_LED = Global_time;
 			show_next_digit();	
