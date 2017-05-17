@@ -53,7 +53,9 @@
 #define STATE_WAIT_CHECKSUM 4
 #define STATE_WAIT_VALIDATE_START 5
 
+U8 second_elapsed = 0;
 unsigned long Global_time = 0L; // global time in ms
+unsigned Local_time = 0L; // local time in ms
 int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
 U16 keys_scan_buffer[4];
@@ -118,6 +120,12 @@ void increment_address_in_EEPROM(void);
 {
 	if(TIM1_SR1 & TIM_SR1_UIF){ // update interrupt
 		Global_time++; // increase timer
+		Local_time++;
+		if(Local_time >= DIGIT_PER)
+		{
+			Local_time = 0;
+			second_elapsed = 1;
+		}		
 	}
 	TIM1_SR1 = 0; // clear all interrupt flags
 	return;
@@ -448,16 +456,19 @@ void updateDeviceStatus(void)
 		else 
 		{
 				device_status = STATUS_COOLING;
+				PB_ODR &= ~(1<<5); // Relay is on
 		}
 	}
   else
   {
-      device_status = STATUS_FREE;
+      device_status = STATUS_FREE;			
+			PB_ODR |= (1<<5); // Relay is off
   }
   
   if( device_status == STATUS_WORKING)
   {
 			PA_ODR |= (1<<2); // Relay is on
+			PB_ODR &= ~(1<<5); // Relay is on			
   }
   else
   {
@@ -526,10 +537,10 @@ int main() {
 	{
 		U8 *test = (U8*)0x4010;
 		U8 result;		
-		if(((unsigned int)(Global_time - T_time) > DIGIT_PER) || (T_time > Global_time)) // set next timer value
+		if(second_elapsed) // set next timer value
 		{
 			// Each second -->
-			T_time = Global_time;	
+			second_elapsed = 0;
 			switch(device_status){
 				case STATUS_FREE:
 					if(show_time_delay == 0) display_int(main_time);
