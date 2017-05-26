@@ -27,6 +27,7 @@
  */
 //#define enableInterrupts() _asm("rim")
 
+#define    ResetIWDG    (IWDG_KR=0xAA)
 #define DIGIT_PER 1000
 
 #define KEY_0_PRESSED  0x01
@@ -486,6 +487,14 @@ void updateDeviceStatus(void)
 //  Serial.print( device_status);
 }
 
+void InitIWDG(void)
+{
+  IWDG_KR  = 0x55;  // Erisim ac?l?yor. 
+  IWDG_PR  = 0x06;  // Onbolucu degeri 256 olarak ayarlan?yor.
+  IWDG_RLR = 0xFF;  // Say?c? 0xFF ten geriye dogru sayacak.
+  IWDG_KR  = 0x00;  // Erisim kapat?l?yor.
+  IWDG_KR  = 0xCC;  // Say?c? saymaya basl?yor.
+}
 
 //----------------------------- MAIN --------------------------
 int main() {
@@ -509,6 +518,7 @@ int main() {
 	CFG_GCR |= 1; // disable SWIM
 	LED_init();
 	uart_init();
+	InitIWDG();
 	// Configure Timer1
 	// prescaler = f_{in}/f_{tim1} - 1
 	// set Timer1 to 1MHz: 1/1 - 1 = 15
@@ -537,6 +547,7 @@ int main() {
 	{
 		U8 *test = (U8*)0x4010;
 		U8 result;		
+		ResetIWDG;
 		if(second_elapsed) // set next timer value
 		{
 			// Each second -->
@@ -690,7 +701,7 @@ int main() {
 				beep_delay = 40;		
 				clear_eeprom();
 			}		
-			if((result & KEY_PRESSED) == KEY_1_PRESSED && Global_time < 1000)
+			if((result & KEY_PRESSED) == KEY_2_PRESSED && Global_time < 1000)
 			{
 				increment_address_in_EEPROM();
 				display_int(settings->address);
