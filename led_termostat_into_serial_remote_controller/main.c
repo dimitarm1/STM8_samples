@@ -55,8 +55,8 @@
 #define STATE_WAIT_VALIDATE_START 5
 
 U8 second_elapsed = 0;
-unsigned long Global_time = 0L; // global time in ms
-unsigned Local_time = 0L; // local time in ms
+volatile unsigned long Global_time = 0L; // global time in ms
+volatile unsigned Local_time = 0L; // local time in ms
 int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
 U16 keys_scan_buffer[4];
@@ -74,25 +74,25 @@ typedef struct {
 work_hours_t *work_hours;
 settings_t *settings;
 
-#define BUFFER_SIZE 5
-unsigned char buffer[BUFFER_SIZE];
-unsigned char* ptecr = buffer;
-unsigned char* ptecr_prev = buffer;
 
-unsigned char device = 255;
-unsigned char status;
-unsigned char result_1;
-unsigned char result_2;
-unsigned char pre_time_serial = 0;
-unsigned char main_time_serial = 0;
-unsigned char cool_time_serial = 0;
-int pre_time = 0;
-int main_time = 0;
-int cool_time = 0;
-unsigned char device_status = STATUS_FREE;
-unsigned char prescaler =  60;
-int receiver_timeout;
-char receiver_state;
+volatile unsigned char device = 255;
+volatile unsigned char status;
+volatile unsigned char result_1;
+volatile unsigned char result_2;
+volatile unsigned char pre_time_serial = 0;
+volatile unsigned char main_time_serial = 0;
+volatile unsigned char cool_time_serial = 0;
+volatile int pre_time = 0;
+volatile int main_time = 0;
+volatile int cool_time = 0;
+volatile unsigned char device_status = STATUS_FREE;
+volatile unsigned char prescaler =  60;
+volatile int receiver_timeout;
+volatile char receiver_state;
+char data;
+char device;
+char checksum;
+char time_in_hex;
 
 // Function prototypes
 int ToBCD(int value);
@@ -288,17 +288,11 @@ void UART_send_byte(U8 byte){
  */
 @interrupt void recept(void)
 {
-	char data;
-	char device;
-	char checksum;
-	char time_in_hex;
+	
 	data = UART1_SR;			/* clear interrupt */
-	*ptecr++ = data = UART1_DR;		/* get the char */
-//	if (ptecr >= &buffer[BUFFER_SIZE])	/* put it in buffer */
-//	{
-//		  ptecr = buffer;
-//	}
-	 if(data & 0x80)  // Command received
+	if(!(data & UART_SR_RXNE)) return;
+	data = UART1_DR;		/* get the char */
+  if(data & 0x80)  // Command received
     {
       device = (data & 0x78)>>3;     
       receiver_timeout = 40;       
@@ -358,7 +352,7 @@ void UART_send_byte(U8 byte){
         }
         if(device_status > 0)
         {
-          updateDeviceStatus();
+          //updateDeviceStatus();
         }
         break;
       case 5: // set main time
@@ -400,7 +394,7 @@ void UART_send_byte(U8 byte){
 						main_time = main_time_serial*60;
 						pre_time = pre_time_serial*60;
 						cool_time = cool_time_serial*60;
-            updateDeviceStatus();
+            //updateDeviceStatus();
           }
           receiver_state = STATE_WAIT_COMMAND;
           break;
@@ -410,7 +404,7 @@ void UART_send_byte(U8 byte){
             pre_time = 0;
             if(device_status > 0)
             {                           
-              updateDeviceStatus();
+              //updateDeviceStatus();
             }                                
           }
           receiver_state = STATE_WAIT_COMMAND;                                    
@@ -540,8 +534,8 @@ int main() {
 	
 	show_next_digit(); // show zero
 	pre_time = main_time = cool_time = 0;
-	device_status = 0;
-	
+	updateDeviceStatus();
+		
 	// Loop
 	do 
 	{
@@ -550,7 +544,7 @@ int main() {
 		ResetIWDG;
 		if(second_elapsed) // set next timer value
 		{
-			// Each second -->
+			// Each second -->		
 			second_elapsed = 0;
 			switch(device_status){
 				case STATUS_FREE:
@@ -575,7 +569,8 @@ int main() {
 				default:
 				break;
 			}
-	
+			LED_init(); // EMC or just Paranoya...
+			updateDeviceStatus();
 			//if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
 		
@@ -707,7 +702,7 @@ int main() {
 				display_int(settings->address);
 			}
 		}	
-		updateDeviceStatus();
+		
 	} while(1);
 }
 
