@@ -554,6 +554,11 @@ int main() {
 					if(pre_time) pre_time--;
 					if(!pre_time)
 				  {
+						BEEP_CSR = 0xbe;
+						beep_delay = 300;
+						counter_enabled = 2;
+						add_minutes_to_eeprom(main_time/60);						
+						pre_time = 0;
 						main_time++;
 					}
 					display_int(-pre_time);
@@ -614,7 +619,7 @@ int main() {
 			
 			if(result & KEY_0_PRESSED) // Start
 			{
-				if(device_status == STATUS_WAITING && pre_time < 9*60) // - wait 3 sec from 1-st start press
+				if(device_status == STATUS_WAITING && pre_time < settings->address*60) // - wait 3 sec from 1-st start press
 				{
 					BEEP_CSR = 0xbe;
 					beep_delay = 200;
@@ -635,7 +640,7 @@ int main() {
 						}
 						else
 						{
-							pre_time = 9*60; // Initial wait itme for manual operation
+							pre_time = settings->address*60; // Initial wait itme for manual operation
 							device_status == STATUS_WAITING;
 						}
 					}
@@ -663,7 +668,7 @@ int main() {
 						display_int(main_time);
 						BEEP_CSR = 0xbe;
 						beep_delay = 10;
-						pre_time = 9*60;
+						pre_time = settings->address*60;
 					}
 					if(result & KEY_2_PRESSED)// minus
 					{
