@@ -578,15 +578,18 @@ int main() {
 					if(show_time_delay == 0) display_int(main_time);
 				break;
 				case STATUS_WAITING:
-					if(pre_time) pre_time--;
-					if(!pre_time)
-				  {
-						BEEP_CSR = 0xbe;
-						beep_delay = 300;
-						counter_enabled = 2;
-						add_minutes_to_eeprom(main_time/60);						
-						pre_time = 0;
-						main_time++;
+					if(pre_time) 
+					{
+						pre_time--;
+						if(!pre_time)
+						{
+							BEEP_CSR = 0xbe;
+							beep_delay = 300;
+							counter_enabled = 2;
+							add_minutes_to_eeprom(main_time/60);						
+							pre_time = 0;
+							main_time++;
+						}
 					}
 					display_int(-pre_time);
 				break;
@@ -744,7 +747,7 @@ int main() {
 }
 
 
-
+#ifdef DISTANCIONNO_SERIAL
 void ping_status(void){
 
 	static int ping_index = 0;
@@ -902,3 +905,4 @@ void send_start(void){
 			USART_SendData(0x55);
 	}
 }
+#endif

@@ -46,7 +46,7 @@ PA_DDR = 0x04;\
 
 // PA1|3, PB4|5, PC3|4|5|6|7, PD1|4|6
 
-#define DISTANCIONNO_SERIAL 1 // Ako e definirano, raboti kato imitira PC Softuer
+//#define DISTANCIONNO_SERIAL 1 // Ako e definirano, raboti kato imitira PC Softuer
 
 #ifdef DISTANCIONNO_SERIAL
 #define LED_init()	do{ \
