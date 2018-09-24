@@ -21,8 +21,6 @@
 
 #include "stm8l.h"
 #include "led.h"
-int ToBCD(int value);
-int FromBCD(int value);
 
 /*
  * bits no     7   6   5   4   3   2   1   0
@@ -220,12 +218,47 @@ void show_next_digit(){
 }
 
 
+
+/**
+ * convert integer value in into string and display it
+ * @param i - value to display, -999999 <= i <= 999999, if wrong, displays "---E"
+ */
+void display_int(S32 I){
+	signed char rem;
+	signed char i;
+	signed char N, sign = 0;
+	if(I < -999999 || I > 999999){
+		set_display_buf("---E");
+		return;
+	}
+//	set_display_buf(NULL); // empty buffer
+	for(i = 0; i < 6; i++)
+		display_buffer[i] = 0;
+	if(I == 0){ // just show zero
+		display_buffer[3] = 0;
+		return;
+	}
+	if(I < 0){
+		sign = 1;
+		I *= -1;
+	}
+	for (i = 0; i < 6; i++)
+	{
+		rem = I % 10;
+		display_buffer[5-i] = rem; //rem;
+		I /= 10;
+		if(I == 0) break;
+	}
+	if(sign && N < 6) display_buffer[5-N] = 16; // minus sign
+}
+
+
 /**
  * convert integer value in seconds and minutes into string and display it
  * @param i - value to display, -999 <= i <= 9999, if wrong, displays "---E"
  */
-void display_int(int I){
-	int rem;
+void display_int_sec(S32 I){
+	S32 rem;
 	signed char i;
 	signed char N = 5, sign = 0;
 	if(I < -999999 || I > 999999){

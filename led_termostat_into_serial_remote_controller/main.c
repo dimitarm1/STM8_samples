@@ -73,6 +73,7 @@ typedef struct {
 	U8 hours_H;
 }work_hours_t;
 work_hours_t *work_hours;
+tmp_test_buff[4];
 settings_t *settings;
 #ifdef DISTANCIONNO_SERIAL
 	#warning "PC Type distancionno compilation!!!"
@@ -522,6 +523,7 @@ int main() {
 	U8 counter_enabled = 0;
 	key_state = 0;
 	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
+
 	settings = (settings_t*)(EEPROM_START_ADDR + sizeof(work_hours_t));
 
 	keys_scan_buffer[0] = keys_scan_buffer[1] = keys_scan_buffer[2] = keys_scan_buffer[3] = 0;
@@ -553,7 +555,7 @@ int main() {
 
 	_asm("rim");    // enable interrupts
 		
-	display_int(0);
+	display_int_sec(0);
 	
 	show_next_digit(); // show zero
 	pre_time = main_time = cool_time = 0;
@@ -571,11 +573,11 @@ int main() {
 			second_elapsed = 0;
 #ifdef werwer
 			if(show_time_delay == 0)
-				display_int(curr_time/100);
+				display_int_sec(curr_time/100);
 #else
 			switch(device_status){
 				case STATUS_FREE:
-					if(show_time_delay == 0) display_int(main_time);
+					if(show_time_delay == 0) display_int_sec(main_time);
 				break;
 				case STATUS_WAITING:
 					if(pre_time) 
@@ -591,15 +593,15 @@ int main() {
 							main_time++;
 						}
 					}
-					display_int(-pre_time);
+					display_int_sec(-pre_time);
 				break;
 				case STATUS_WORKING:
 					if(main_time)	main_time--;
-					display_int(main_time);
+					display_int_sec(main_time);
 				break;
 				case STATUS_COOLING:
 					if(cool_time)	cool_time--;
-					display_int(cool_time);
+					display_int_sec(cool_time);
 				break;
 				default:
 				break;
@@ -646,7 +648,7 @@ int main() {
 			  show_time_delay--;
 				if(!show_time_delay)
 				{
-					display_int(main_time); // Stop show time
+					display_int_sec(main_time); // Stop show time
 				}				
 			}
 			
@@ -682,7 +684,10 @@ int main() {
 					else
 					{						
 						// Show Time
-						int i = work_hours->minutes + (int)(work_hours->hours_L) * 60 + (int)(work_hours->hours_H) * 60*60;
+						//int i = work_hours->minutes + (int)(work_hours->hours_L) * 60 + (int)(work_hours->hours_H) * 60*60;
+						S32 i = (S32)work_hours->minutes + 
+						   (S32)(work_hours->hours_L) * 100 +  
+							 (S32)(work_hours->hours_H) * 10000;
 						display_int(i);
 						show_time_delay = 6000;
 					}
@@ -700,7 +705,7 @@ int main() {
 					if(result & KEY_3_PRESSED)// plus
 					{
 						if(main_time < 60*30)	main_time+=60;
-						display_int(main_time);
+						display_int_sec(main_time);
 						BEEP_CSR = 0xbe;
 						beep_delay = 10;
 						pre_time = settings->address*60;
@@ -710,7 +715,7 @@ int main() {
 						if(main_time >= 60)
 						{
 							main_time -=60;
-							display_int(main_time);
+							display_int_sec(main_time);
 						}
 						BEEP_CSR = 0xbe;
 						beep_delay = 10;
@@ -724,8 +729,9 @@ int main() {
 				if(device_status != STATUS_FREE)
 				{
 					cool_time = 3*60;
-					display_int(cool_time);
+					display_int_sec(cool_time);
 				}
+								
 				BEEP_CSR = 0xbe;
 				beep_delay = 40;
 				show_time_delay = 0;			
@@ -739,7 +745,7 @@ int main() {
 			if((result & KEY_PRESSED) == KEY_2_PRESSED && Global_time < 1000)
 			{
 				increment_address_in_EEPROM();
-				display_int(settings->address);
+				display_int_sec(settings->address);
 			}
 		}	
 		

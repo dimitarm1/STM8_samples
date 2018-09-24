@@ -27,6 +27,7 @@
 typedef unsigned char U8;
 typedef unsigned int U16;
 typedef unsigned long U32;
+typedef signed long S32;
 #define NULL (void*)0
 
 /* functions */
