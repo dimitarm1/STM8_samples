@@ -45,6 +45,22 @@ PA_DDR = 0x04;\
 		PD_DDR = 0x07;\*/
 
 // PA1|3, PB4|5, PC3|4|5|6|7, PD1|4|6
+
+#define DISTANCIONNO_SERIAL 1 // Ako e definirano, raboti kato imitira PC Softuer
+
+#ifdef DISTANCIONNO_SERIAL
+#define LED_init()	do{ \
+		PA_DDR = 0xf1;\
+		PB_DDR = 0x20;\
+		PC_DDR = 0xf8;\
+		PD_DDR = 0x1f;\
+		PA_CR1 = 0xff;\
+		PB_CR1 = 0xff;\
+		PC_CR1 = 0xff;\
+		PD_CR1 = 0xff; \
+	}while(0)
+#else
+
 #define LED_init()	do{ \
 		PA_DDR = 0xf5;\
 		PB_DDR = 0x20;\
@@ -55,5 +71,5 @@ PA_DDR = 0x04;\
 		PC_CR1 = 0xff;\
 		PD_CR1 = 0xff; \
 	}while(0)
-
+#endif
 #endif // __LED_H__

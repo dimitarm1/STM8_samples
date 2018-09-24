@@ -54,6 +54,7 @@
 #define STATE_WAIT_CHECKSUM 4
 #define STATE_WAIT_VALIDATE_START 5
 
+
 U8 second_elapsed = 0;
 volatile unsigned long Global_time = 0L; // global time in ms
 volatile unsigned Local_time = 0L; // local time in ms
@@ -73,7 +74,9 @@ typedef struct {
 }work_hours_t;
 work_hours_t *work_hours;
 settings_t *settings;
-
+#ifdef DISTANCIONNO_SERIAL
+	#warning "PC Type distancionno compilation!!!"
+#endif
 
 volatile unsigned char device = 255;
 volatile unsigned char status;
@@ -85,20 +88,25 @@ volatile unsigned char cool_time_serial = 0;
 volatile int pre_time = 0;
 volatile int main_time = 0;
 volatile int cool_time = 0;
+volatile int curr_status = -1;
+volatile int curr_time = 0;
 volatile unsigned char device_status = STATUS_FREE;
 volatile unsigned char prescaler =  60;
 volatile int receiver_timeout;
 volatile char receiver_state;
 char data;
-char device;
 char checksum;
 char time_in_hex;
+char data_received;
 
 // Function prototypes
 int ToBCD(int value);
 int FromBCD(int value);
 void updateDeviceStatus(void);
 void increment_address_in_EEPROM(void);
+void ping_status(void);
+void send_start(void);
+void send_time(void);
 
 
 @interrupt void HandledInterrupt (void)
@@ -292,6 +300,10 @@ void UART_send_byte(U8 byte){
 	data = UART1_SR;			/* clear interrupt */
 	if(!(data & UART_SR_RXNE)) return;
 	data = UART1_DR;		/* get the char */
+#ifdef DISTANCIONNO_SERIAL
+	data_received = 1;
+
+#else
   if(data & 0x80)  // Command received
     {
       device = (data & 0x78)>>3;     
@@ -413,8 +425,19 @@ void UART_send_byte(U8 byte){
           break;
       }
     }	
+#endif
 }
 
+
+unsigned char USART_Receive(int *timeout)
+{
+	data_received = 0;
+	while(*timeout && !data_received)
+	{
+		*timeout--;
+	}
+	return data;
+}
 int ToBCD(int value)
 {  
   int digits[3];
@@ -546,6 +569,10 @@ int main() {
 		{
 			// Each second -->		
 			second_elapsed = 0;
+#ifdef werwer
+			if(show_time_delay == 0)
+				display_int(curr_time/100);
+#else
 			switch(device_status){
 				case STATUS_FREE:
 					if(show_time_delay == 0) display_int(main_time);
@@ -574,8 +601,13 @@ int main() {
 				default:
 				break;
 			}
+#endif
 			LED_init(); // EMC or just Paranoya...
+#ifdef DISTANCIONNO_SERIAL
+			ping_status();
+#else
 			updateDeviceStatus();
+#endif
 			//if(i > 9999) i = -1200;
 			// check ADC value to light up DPs proportionaly
 		
@@ -711,3 +743,162 @@ int main() {
 	} while(1);
 }
 
+
+
+void ping_status(void){
+
+	static int ping_index = 0;
+	volatile static int status_codes[4];
+	// Ping solarium for status
+	{
+		int sts;
+		ping_index = (ping_index + 1) & 0x03;
+		status_codes[ping_index] = get_controller_status(settings->address);
+		if(status_codes[ping_index]==status_codes[0] && status_codes[ping_index]==status_codes[1] &&
+				status_codes[ping_index]==status_codes[2] && status_codes[ping_index]==status_codes[3] ){
+			sts = status_codes[ping_index];
+		}
+		else {
+			return;
+		}
+
+		if(sts != -1){
+			curr_status = (sts & 0xC0)>>6;
+			curr_time = sts & 0x3F;
+		} else {
+			curr_status = -1;
+			curr_time = 0;
+		}
+
+		curr_time = FromBCD(curr_time);
+		if(curr_status != -1)
+		{
+			device_status = curr_status;
+
+		}
+	}
+}
+
+void send_time(void){
+	// Ping solarium for status
+	if(settings->address >15){
+		curr_status = -1;
+		curr_time = 0;
+	} else {
+		int retry = 0;
+		int timeout2 = 10000;
+		char data;
+		int time_in_hex = ToBCD(main_time);
+		pre_time = pre_time & 0x7F;
+		// checksum: CoolTime + Pre-Time - 5 - MainTime
+
+		while(retry < 20){
+			// clear in FIFO
+			volatile unsigned char checksum = (pre_time + cool_time  - time_in_hex - 5) & 0x7F;
+			volatile unsigned char  remote_check_sum = 220;
+//			while(USART_GetFlagStatus(USART1,USART_FLAG_RXNE))	USART_ReceiveData(USART1); // Flush input
+//			while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET); // wAIT UNTIL TX BUFFER IS EMPTY
+
+			USART_SendData(0x80U | ((settings->address & 0x0fU)<<3U) | 2U); //Command 2 == Pre_time_set
+			SystickDelay(2);
+			USART_SendData(pre_time);
+
+			SystickDelay(2);
+			USART_SendData(0x80U | ((settings->address & 0x0fU)<<3U) | 5U); //Command 5 == Main time set
+
+			SystickDelay(2);
+			USART_SendData(time_in_hex);
+
+//			SystickDelay(2);
+
+
+//			USART_ReceiveData(USART1); //"Read" old time
+
+			SystickDelay(2);
+			USART_SendData(0x80U | ((settings->address & 0x0fU)<<3U) | 3U); //Command 3 == Cool Time set
+
+			SystickDelay(2);
+			USART_SendData(cool_time);
+
+			SystickDelay(4);
+			timeout2 = 10000;
+
+			remote_check_sum = USART_ReceiveData(&timeout2); //"Read" checksum
+
+			SystickDelay(20);
+//			checksum = remote_check_sum;
+			if(remote_check_sum == checksum){
+				SystickDelay(2);
+				USART_SendData(checksum);
+			}
+			SystickDelay(100);
+			USART_SendData(0x80U | ((settings->address & 0x0f)<<3U) | 0); //Command 0 - Get status
+			SystickDelay(20);
+			timeout2 = 10000;
+			data = USART_ReceiveData(&timeout2); //"Read" status
+			if ((data >> 6 ) != 0 ) retry = 22;
+			retry ++;
+		}
+
+		/**************** OLD Pascal code as example
+		CheckSum:=PreTime+CoolTime-DataSent-5;
+		    CheckSum:=CheckSum mod 128 ;
+		    PurgeComm(hDevice,(PURGE_TXCLEAR or PURGE_RXCLEAR	));
+		    while retry<20 do
+		     begin
+		      for i:=1 to 10 do IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL);
+		      Data1:=128+Chanel*8+2;
+		      IOResult:=WriteFile(hDevice,Data1,1,IOCount,NIL);
+		      sleep(2);             // Set PRE-Time
+		      IOResult:=WriteFile(hDevice,PreTime,1,IOCount,NIL);
+		      Data1:=128+Chanel*8+5;
+		      sleep(2);              // Set main time
+		      IOResult:=WriteFile(hDevice,Data1,1,IOCount,NIL);
+		      sleep(2);
+		      IOResult:=WriteFile(hDevice,DataSent,1,IOCount,NIL);
+		      sleep(2);
+		      IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL);   // get old main time
+		      Data1:=128+Chanel*8+3; //  Set cool time
+		      IOResult:=WriteFile(hDevice,Data1,1,IOCount,NIL);
+		      sleep(2);
+		      IOResult:=WriteFile(hDevice,CoolTime,1,IOCount,NIL);
+		      sleep(4);
+		      IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL); // Get checksum?
+		      if IOResult and (IOByte=CheckSum) then
+		      IOResult:=WriteFile(hDevice,CheckSum,1,IOCount,NIL);
+		      sleep(100);
+		      Data1:=128+Chanel*8; // Get status command for selected chanel
+		      IOResult:=WriteFile(hDevice,Data1,1,IOCount,NIL);
+		      sleep(5);
+		      IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL);
+		      IOByte:= IOByte div 64;
+		      if IOResult and (IOByte <>0) and
+		        ((DataSent=0) or (PreTime > 0) or ((IOByte = 1) and (DataSent >0)))    then
+		        begin
+		          retry:=22;
+		        end
+		      else retry:= retry+1;
+		      sleep(1);
+		      MainForm.Gauge2.Progress:=retry;
+		     end;
+		     IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL);
+		     IOResult:=ReadFile(hDevice,IOByte,1,IOCount,NIL);
+
+		*/
+	}
+}
+
+void send_start(void){
+	// Ping solarium for status
+	if(settings->address >15){
+		curr_status = -1;
+		curr_time = 0;
+	} else {
+//			while(USART_GetFlagStatus(USART1,USART_FLAG_RXNE))	USART_ReceiveData(USART1); // Flush input
+//			while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET); // wAIT UNTIL TX BUFFER IS EMPTY
+
+			USART_SendData(0x80 | ((settings->address & 0x0f)<<3) | 1); //Command 1 == start
+			SystickDelay(2);
+			USART_SendData(0x55);
+	}
+}
