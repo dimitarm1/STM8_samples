@@ -656,7 +656,7 @@ int main() {
 			
 			if(result & KEY_0_PRESSED) // Start
 			{
-				if(device_status == STATUS_WAITING && pre_time < settings->address*60) // - wait 3 sec from 1-st start press
+				if(device_status == STATUS_WAITING && ((pre_time_serial) || (pre_time < settings->address*60))) // - wait 3 sec from 1-st start press
 				{
 					BEEP_CSR = 0xbe;
 					beep_delay = 200;
