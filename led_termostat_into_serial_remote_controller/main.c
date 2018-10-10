@@ -726,7 +726,7 @@ int main() {
 			if(result & KEY_1_PRESSED) //Stop
 			{				
 				main_time = pre_time = cool_time = 0;
-				if(device_status != STATUS_FREE)
+				if(device_status == STATUS_WORKING)
 				{
 					cool_time = 3*60;
 					display_int_sec(cool_time);
