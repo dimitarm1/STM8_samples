@@ -551,8 +551,10 @@ int main() {
 	// auto-reload + interrupt on overflow + enable
 	TIM1_CR1 = TIM_CR1_APRE | TIM_CR1_URS | TIM_CR1_CEN;
 	// configure ADC
-  BEEP_CSR = 0x1e; // Configure BEEP
-
+	
+  //BEEP_CSR = 0x1e; // Configure BEEP // New PCB
+	PD_ODR |= (1<<4); //Beeper OFF New PCB
+	
 	_asm("rim");    // enable interrupts
 		
 	display_int_sec(0);
@@ -585,7 +587,8 @@ int main() {
 						pre_time--;
 						if(!pre_time)
 						{
-							BEEP_CSR = 0xbe;
+							//BEEP_CSR = 0xbe;
+							PD_ODR &= ~(1<<4);
 							beep_delay = 300;
 							counter_enabled = 2;
 							add_minutes_to_eeprom(main_time/60);						
@@ -640,7 +643,9 @@ int main() {
 				beep_delay--;
 				if(!beep_delay)
 				{
-					BEEP_CSR = 0x1e; // Configure BEEP
+					//BEEP_CSR = 0x1e; // Configure BEEP
+					//PD_ODR &= ~(1<<4);
+					PD_ODR |= (1<<4);
 				}
 			}
 			if(show_time_delay)
@@ -658,7 +663,8 @@ int main() {
 			{
 				if(device_status == STATUS_WAITING && ((pre_time_serial) || (pre_time < settings->address*60))) // - wait 3 sec from 1-st start press
 				{
-					BEEP_CSR = 0xbe;
+					//BEEP_CSR = 0xbe;
+					PD_ODR &= ~(1<<4);
 					beep_delay = 200;
 					counter_enabled = 2;
 					add_minutes_to_eeprom(main_time/60);
@@ -667,7 +673,8 @@ int main() {
 				}
 				if(device_status == STATUS_FREE)
 				{
-					BEEP_CSR = 0xbe;
+					//BEEP_CSR = 0xbe;
+					PD_ODR &= ~(1<<4);
 					beep_delay = 10;
 					if(show_time_delay == 0 && main_time>0)
 					{						
@@ -706,7 +713,8 @@ int main() {
 					{
 						if(main_time < 60*30)	main_time+=60;
 						display_int_sec(main_time);
-						BEEP_CSR = 0xbe;
+						PD_ODR &= ~(1<<4);
+						//BEEP_CSR = 0xbe;
 						beep_delay = 10;
 						pre_time = settings->address*60;
 					}
@@ -717,7 +725,8 @@ int main() {
 							main_time -=60;
 							display_int_sec(main_time);
 						}
-						BEEP_CSR = 0xbe;
+						//BEEP_CSR = 0xbe;
+						PD_ODR &= ~(1<<4);
 						beep_delay = 10;
 					}
 				}
@@ -732,13 +741,15 @@ int main() {
 					display_int_sec(cool_time);
 				}
 								
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
+				PD_ODR &= ~(1<<4);
 				beep_delay = 40;
 				show_time_delay = 0;			
 			}
 			if((result & KEY_PRESSED) == KEY_PRESSED && Global_time < 1000)
 			{
-				BEEP_CSR = 0xbe;
+				//BEEP_CSR = 0xbe;
+				PD_ODR &= ~(1<<4);
 				beep_delay = 40;		
 				clear_eeprom();
 			}		

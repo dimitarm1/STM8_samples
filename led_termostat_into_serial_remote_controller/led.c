@@ -130,10 +130,12 @@ void light_up_digit(U8 N){
 		case 1:
 			PC_ODR |= (1<<3);
 		break;
-		case 2:
+		//case 2: // Changed for New PCB!!
+		case 3:
 			PD_ODR |= (1<<3);
 		break;
-		case 3:
+		//case 3:  // Changed for new PCB!!
+		case 2:
 			PC_ODR |= (1<<4);
 		break;
 		case 4:
