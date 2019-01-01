@@ -22,6 +22,15 @@
 #ifndef __LED_H__
 #define __LED_H__
 #include "stm8l.h"
+//#define NEW_BOARD
+
+#ifndef NEW_BOARD
+	#define BEEP_ON()  BEEP_CSR = 0xbe;
+	#define BEEP_OFF() BEEP_CSR = 0x1e;
+#else
+	#define BEEP_ON()  PD_ODR &= ~(1<<4);
+	#define BEEP_OFF() PD_ODR |= (1<<4);
+#endif
 
 void set_display_buf(char *str);
 void show_buf_digit(U8 N);
