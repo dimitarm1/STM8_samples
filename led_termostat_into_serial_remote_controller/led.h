@@ -22,7 +22,8 @@
 #ifndef __LED_H__
 #define __LED_H__
 #include "stm8l.h"
-//#define NEW_BOARD
+#define NEW_BOARD
+//#define BAUD_9600
 
 #ifndef NEW_BOARD
 	#define BEEP_ON()  BEEP_CSR = 0xbe;

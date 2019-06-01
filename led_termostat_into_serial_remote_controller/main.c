@@ -276,7 +276,11 @@ void uart_init(void){
 // Configure UART
 	// 8 bit, no parity, 1 stop (UART_CR1/3 = 0 - reset value)
 	// 1200 on 16MHz: BRR1=0x41, BRR2=0x35
+#ifndef BAUD_9600	
 	UART1_BRR1 = 0xCD; UART1_BRR2 = 0x33; //taka stava!!
+#else	
+	UART1_BRR1 = 0x1B; UART1_BRR2 = 0x2F; //taka stava!!
+#endif
 	UART1_CR2 = UART_CR2_TEN | UART_CR2_REN | UART_CR2_RIEN; // Allow RX/TX, 
 	 // Allow RX/TX, generate ints on rx
 	//UART1_CR1 = 0; // Enable UART?	 
@@ -307,8 +311,12 @@ void UART_send_byte(U8 byte){
 #else
   if(data & 0x80)  // Command received
     {
-      device = (data & 0x78)>>3;     
-      receiver_timeout = 40;       
+      device = (data & 0x78)>>3; 
+#ifdef BAUD_9600		
+      receiver_timeout = 350;       
+#else
+			receiver_timeout = 40;       
+#endif
       /*
  * commads:
        * 0 - status 0-free, 1-Working, 2-COOLING, 3-WAITING
