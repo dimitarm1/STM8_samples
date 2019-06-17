@@ -62,6 +62,7 @@ int ADC_value = 0; // value of last ADC measurement
 U8 LED_delay = 1; // one digit emitting time
 U16 keys_scan_buffer[4];
 U8 key_state;
+U8 counter_enabled;
 typedef struct settings_t{
 	U8 pre_time;
 	U8 cool_time;
@@ -478,12 +479,12 @@ void updateDeviceStatus(void)
 		}
 		else if(main_time > 0)
 		{
-				device_status = STATUS_WORKING;
+				device_status = STATUS_WORKING;				
 		}
 		else 
 		{
 				device_status = STATUS_COOLING;
-				PB_ODR &= ~(1<<5); // Relay is on
+        PB_ODR &= ~(1<<5); // Relay is on after delay				
 		}
 	}
   else
@@ -494,8 +495,8 @@ void updateDeviceStatus(void)
   
   if( device_status == STATUS_WORKING)
   {
-			PA_ODR |= (1<<2); // Relay is on
-			PB_ODR &= ~(1<<5); // Relay is on			
+			PA_ODR |= (1<<2); // Relay is on			
+			if(!counter_enabled)	PB_ODR &= ~(1<<5); // Relay is on after delay			
   }
   else
   {
@@ -528,7 +529,7 @@ int main() {
 	unsigned long T_time = 0L; // timer	
 	U8 beep_delay = 0;
 	int show_time_delay = 0;
-	U8 counter_enabled = 0;
+	counter_enabled = 0;
 	key_state = 0;
 	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
 
@@ -580,6 +581,7 @@ int main() {
 		{
 			// Each second -->		
 			second_elapsed = 0;
+			if(counter_enabled) counter_enabled--; // Fan delay timer
 #ifdef werwer
 			if(show_time_delay == 0)
 				display_int_sec(curr_time/100);
@@ -596,7 +598,7 @@ int main() {
 						{
 							BEEP_ON();
 							beep_delay = 300;
-							counter_enabled = 2;
+							counter_enabled = 4;
 							add_minutes_to_eeprom(main_time/60);						
 							pre_time = 0;
 							main_time++;
@@ -671,7 +673,7 @@ int main() {
 					{
 						BEEP_ON();
 						beep_delay = 200;
-						counter_enabled = 2;
+						counter_enabled = 4;
 						add_minutes_to_eeprom(main_time/60);
 						main_time++;
 						pre_time = 0;
