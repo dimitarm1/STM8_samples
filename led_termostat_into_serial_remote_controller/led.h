@@ -22,10 +22,10 @@
 #ifndef __LED_H__
 #define __LED_H__
 #include "stm8l.h"
-#define NEW_BOARD
+#define BOARD_VER 3
 //#define BAUD_9600
 
-#ifndef NEW_BOARD
+#if (BOARD_VER==1) 
 	#define BEEP_ON()  BEEP_CSR = 0xbe;
 	#define BEEP_OFF() BEEP_CSR = 0x1e;
 #else
