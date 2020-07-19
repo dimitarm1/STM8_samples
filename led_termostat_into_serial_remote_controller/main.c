@@ -284,10 +284,11 @@ void uart_init(void){
 #else	
 	UART1_BRR1 = 0x1B; UART1_BRR2 = 0x2F; //taka stava!!
 #endif
-	UART1_CR2 = UART_CR2_TEN; // Allow TX, 
+	
 	if(	settings->address != 0x10) 
 	{
 	//No External remote control	
+	UART1_CR2 = UART_CR2_TEN; // Allow TX, 
 	UART1_CR2 |= UART_CR2_REN | UART_CR2_RIEN; // Allow RX, 
 	}
 	 // Allow RX/TX, generate ints on rx
@@ -537,7 +538,7 @@ int main() {
 	U8 beep_delay = 0;
 	int show_time_delay = 0;
 	counter_enabled = 0;
-	key_state = 0;
+	external_control =key_state = 0;
 	work_hours = (work_hours_t*)EEPROM_START_ADDR;	
 
 	settings = (settings_t*)(EEPROM_START_ADDR + sizeof(work_hours_t));
@@ -577,7 +578,9 @@ int main() {
 	show_next_digit(); // show zero
 	pre_time = main_time = cool_time = 0;
 	updateDeviceStatus();
-		
+	if(settings->address == 0x10)
+		PD_ODR |= (1<<5);
+	
 	// Loop
 	do 
 	{
@@ -630,7 +633,7 @@ int main() {
 				break;
 			}
 #endif
-			LED_init(); // EMC or just Paranoya...
+			//LED_init(); // EMC or just Paranoya...
 #ifdef DISTANCIONNO_SERIAL
 			ping_status();
 #else
@@ -676,14 +679,19 @@ int main() {
 			}
 			
 			result = scan_keys();		
-		
-			if(result & KEY_0_PRESSED) // Start
+			if(settings->address == 0x10)
 			{
-				if(	settings->address == 0x10)
+				if((key_state & KEY_0_PRESSED))
 				{
-					UART_send_byte(0);
+					PD_ODR &= ~(1<<5);
 				}
 				else
+				{
+					PD_ODR |= (1<<5);
+				}
+			}
+			if(result & KEY_0_PRESSED && settings->address != 0x10) // Start
+			{				
 				{
 					if(device_status == STATUS_WAITING && ((pre_time_serial) || (pre_time < settings->address*60))) // - wait 3 sec from 1-st start press
 					{
@@ -727,7 +735,8 @@ int main() {
 				}
 			}
 			else 
-			{			
+			{		
+					
 				if(result && show_time_delay)
 				{
 					main_time = 0;
@@ -790,7 +799,7 @@ int main() {
 			}
 			else
 			{
-				if(	settings->address == 0x10 && !(key_state & KEY_1_PRESSED))
+				if(	settings->address == 0x10 && !(key_state & KEY_1_PRESSED && Global_time > 1500))
 				{	
 					if(external_control )
 					{
