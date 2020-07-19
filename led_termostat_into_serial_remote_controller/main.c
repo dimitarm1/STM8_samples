@@ -100,6 +100,7 @@ char data;
 char checksum;
 char time_in_hex;
 char data_received;
+volatile char external_control = 0;
 
 // Function prototypes
 int ToBCD(int value);
@@ -175,7 +176,7 @@ U8 scan_keys(void)
 
 void increment_address_in_EEPROM(void)
 {
-	U8 tmp = settings->address & 0x0f;
+	U8 tmp = settings->address % 0x11;
 	//
   //  Check if the EEPROM is write-protected.  If it is then unlock the EEPROM.
   //
@@ -187,7 +188,7 @@ void increment_address_in_EEPROM(void)
 	//
 	//  Write the data to the EEPROM.
 	//
-	settings->address = (tmp+1)&0x0f;
+	settings->address = (tmp+1)%0x11;
 	//
   //  Now write protect the EEPROM.
 	//
@@ -272,7 +273,8 @@ void clear_eeprom(void)
 void uart_init(void){
 	// PD5 - UART2_TX
 	PD_DDR |= UART_TX_PIN;
-	PD_CR1 |= UART_TX_PIN;	
+	PD_CR1 |= UART_TX_PIN;
+	
 	UART1_CR2 = 0;
 // Configure UART
 	// 8 bit, no parity, 1 stop (UART_CR1/3 = 0 - reset value)
@@ -282,7 +284,12 @@ void uart_init(void){
 #else	
 	UART1_BRR1 = 0x1B; UART1_BRR2 = 0x2F; //taka stava!!
 #endif
-	UART1_CR2 = UART_CR2_TEN | UART_CR2_REN | UART_CR2_RIEN; // Allow RX/TX, 
+	UART1_CR2 = UART_CR2_TEN; // Allow TX, 
+	if(	settings->address != 0x10) 
+	{
+	//No External remote control	
+	UART1_CR2 |= UART_CR2_REN | UART_CR2_RIEN; // Allow RX, 
+	}
 	 // Allow RX/TX, generate ints on rx
 	//UART1_CR1 = 0; // Enable UART?	 
 }
@@ -484,13 +491,13 @@ void updateDeviceStatus(void)
 		else 
 		{
 				device_status = STATUS_COOLING;
-        PB_ODR &= ~(1<<5); // Relay is on after delay				
+				PB_ODR &= ~(1<<5); // Relay is on after delay				
 		}
 	}
   else
   {
       device_status = STATUS_FREE;			
-			PB_ODR |= (1<<5); // Relay is off
+	  PB_ODR |= (1<<5); // Relay is off
   }
   
   if( device_status == STATUS_WORKING)
@@ -586,7 +593,12 @@ int main() {
 			if(show_time_delay == 0)
 				display_int_sec(curr_time/100);
 #else
-			switch(device_status){
+			if(external_control && settings->address == 0x10)
+			{
+				main_time++;
+				display_int_sec(main_time);
+			}
+			else switch(device_status){
 				case STATUS_FREE:
 					if(show_time_delay == 0) display_int_sec(main_time);
 				break;
@@ -598,7 +610,7 @@ int main() {
 						{
 							BEEP_ON();
 							beep_delay = 300;
-							counter_enabled = 4;
+							counter_enabled = 1;
 							add_minutes_to_eeprom(main_time/60);						
 							pre_time = 0;
 							main_time++;
@@ -664,46 +676,53 @@ int main() {
 			}
 			
 			result = scan_keys();		
-			
+		
 			if(result & KEY_0_PRESSED) // Start
 			{
-				if(device_status == STATUS_WAITING && ((pre_time_serial) || (pre_time < settings->address*60))) // - wait 3 sec from 1-st start press
+				if(	settings->address == 0x10)
 				{
-					if(pre_time > 0)
-					{
-						BEEP_ON();
-						beep_delay = 200;
-						counter_enabled = 4;
-						add_minutes_to_eeprom(main_time/60);
-						main_time++;
-						pre_time = 0;
-					}
+					UART_send_byte(0);
 				}
-				if(device_status == STATUS_FREE)
+				else
 				{
-					BEEP_ON();
-					beep_delay = 10;
-					if(show_time_delay == 0 && main_time>0)
-					{						
+					if(device_status == STATUS_WAITING && ((pre_time_serial) || (pre_time < settings->address*60))) // - wait 3 sec from 1-st start press
+					{
 						if(pre_time > 0)
 						{
-							cool_time = 3*60; // Indicate manual start using Cool Time							
-						}
-						else
-						{
-							pre_time = settings->address*60; // Initial wait itme for manual operation
-							device_status == STATUS_WAITING;
+							BEEP_ON();
+							beep_delay = 200;
+							counter_enabled = 1;
+							add_minutes_to_eeprom(main_time/60);
+							main_time++;
+							pre_time = 0;
 						}
 					}
-					else
-					{						
-						// Show Time
-						//int i = work_hours->minutes + (int)(work_hours->hours_L) * 60 + (int)(work_hours->hours_H) * 60*60;
-						S32 i = (S32)work_hours->minutes + 
-						   (S32)(work_hours->hours_L) * 100 +  
-							 (S32)(work_hours->hours_H) * 10000;
-						display_int(i);
-						show_time_delay = 6000;
+					if(device_status == STATUS_FREE)
+					{
+						BEEP_ON();
+						beep_delay = 10;
+						if(show_time_delay == 0 && main_time>0)
+						{						
+							if(pre_time > 0)
+							{
+								cool_time = 3*60; // Indicate manual start using Cool Time							
+							}
+							else
+							{
+								pre_time = settings->address*60; // Initial wait itme for manual operation
+								device_status == STATUS_WAITING;
+							}
+						}
+						else
+						{						
+							// Show Time
+							//int i = work_hours->minutes + (int)(work_hours->hours_L) * 60 + (int)(work_hours->hours_H) * 60*60;
+							S32 i = (S32)work_hours->minutes + 
+								(S32)(work_hours->hours_L) * 100 +  
+								(S32)(work_hours->hours_H) * 10000;
+							display_int(i);
+							show_time_delay = 6000;
+						}
 					}
 				}
 			}
@@ -738,17 +757,53 @@ int main() {
 			}
 			
 			if(result & KEY_1_PRESSED) //Stop
-			{				
-				main_time = pre_time = cool_time = 0;
-				if(device_status == STATUS_WORKING)
-				{
-					cool_time = 3*60;
-					display_int_sec(cool_time);
+			{	
+				if(	settings->address == 0x10)
+				{	
+					if(!external_control )
+					{
+						if( Global_time > 500)
+						{
+							main_time = 60;
+							external_control = 50;
+							cool_time = 3*60;
+						}
+					}
+					else
+					{
+						external_control = 50;
+					}
 				}
+				else
+				{
+					main_time = pre_time = cool_time = 0;
+					if(device_status == STATUS_WORKING)
+					{
+						cool_time = 3*60;
+						display_int_sec(cool_time);
+					}
 								
-				BEEP_ON();
-				beep_delay = 40;
-				show_time_delay = 0;			
+					BEEP_ON();
+					beep_delay = 40;
+					show_time_delay = 0;			
+				}
+			}
+			else
+			{
+				if(	settings->address == 0x10 && !(key_state & KEY_1_PRESSED))
+				{	
+					if(external_control )
+					{
+						external_control--;
+						if(!external_control)
+						{
+							main_time = 0;
+							cool_time = 3*60;
+							display_int_sec(cool_time);
+						}
+					}
+					
+				}				
 			}
 			if((result & KEY_PRESSED) == KEY_PRESSED && Global_time < 1000)
 			{
@@ -759,7 +814,14 @@ int main() {
 			if((result & KEY_PRESSED) == KEY_2_PRESSED && Global_time < 1000)
 			{
 				increment_address_in_EEPROM();
-				display_int_sec(settings->address);
+				if(settings->address>15)
+				{
+					display_int_sec(-1000000);
+				}
+				else
+				{
+					display_int_sec(settings->address);
+				}
 			}
 		}	
 		

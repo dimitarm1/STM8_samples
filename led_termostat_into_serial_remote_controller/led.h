@@ -22,7 +22,7 @@
 #ifndef __LED_H__
 #define __LED_H__
 #include "stm8l.h"
-#define BOARD_VER 3
+#define BOARD_VER 2
 //#define BAUD_9600
 
 #if (BOARD_VER==1) 
